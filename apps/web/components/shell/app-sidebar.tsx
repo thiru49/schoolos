@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarCheck,
+  BookOpen,
   FileBarChart,
   GraduationCap,
   LayoutDashboard,
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/parents", label: "Parents", icon: Users, permission: PERMISSIONS.PARENTS_READ },
   { href: "/teachers", label: "Teachers", icon: UserRound, permission: PERMISSIONS.TEACHERS_READ },
   { href: "/attendance", label: "Attendance", icon: CalendarCheck, permission: PERMISSIONS.ATTENDANCE_READ },
+  { href: "/homework", label: "Homework", icon: BookOpen, permission: PERMISSIONS.HOMEWORK_READ },
   { href: "/reports/attendance", label: "Reports", icon: FileBarChart, permission: PERMISSIONS.REPORTS_ATTENDANCE },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
 ];

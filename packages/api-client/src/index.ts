@@ -135,6 +135,29 @@ export function createApiClient(options: {
         }>(`/attendance?${q.toString()}`);
       },
     },
+    homework: {
+      list: (query?: { sectionId?: string; studentId?: string }) => {
+        const q = new URLSearchParams();
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        return request<
+          {
+            id: string;
+            title: string;
+            body: string;
+            dueDate: string;
+            sectionId: string;
+            classId: string;
+            label: string;
+            completed?: boolean;
+            completionCount: number;
+          }[]
+        >(`/homework?${q.toString()}`);
+      },
+      create: (body: { classId: string; sectionId: string; title: string; body: string; dueDate: string }) =>
+        request<unknown>("/homework", { method: "POST", body: JSON.stringify(body) }),
+      complete: (id: string) => request<unknown>(`/homework/${id}/complete`, { method: "POST" }),
+    },
     students: {
       list: (query?: { sectionId?: string; q?: string }) => {
         const q = new URLSearchParams();
