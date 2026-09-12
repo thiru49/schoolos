@@ -5,9 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarCheck,
   FileBarChart,
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   Settings,
+  Users,
+  UserRound,
 } from "lucide-react";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { useAppBranding } from "../../lib/branding-context";
@@ -16,6 +19,9 @@ import { cn } from "../../lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: null },
+  { href: "/students", label: "Students", icon: GraduationCap, permission: PERMISSIONS.STUDENTS_READ },
+  { href: "/parents", label: "Parents", icon: Users, permission: PERMISSIONS.PARENTS_READ },
+  { href: "/teachers", label: "Teachers", icon: UserRound, permission: PERMISSIONS.TEACHERS_READ },
   { href: "/attendance", label: "Attendance", icon: CalendarCheck, permission: PERMISSIONS.ATTENDANCE_READ },
   { href: "/reports/attendance", label: "Reports", icon: FileBarChart, permission: PERMISSIONS.REPORTS_ATTENDANCE },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
