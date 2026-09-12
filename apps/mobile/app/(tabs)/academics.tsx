@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useBranding } from "../../features/branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
-import { EmptyState } from "../../components/states/Feedback";
 
 export default function Academics() {
   const { theme, acl, selectedChild } = useBranding();
@@ -28,8 +27,8 @@ export default function Academics() {
       <View className="mt-3">
         <AppButton label="Timetable" variant="secondary" onPress={() => router.push("/timetable")} />
       </View>
-      <View className="mt-6">
-        <EmptyState title="Exams and marks" detail="These modules are not built yet." />
+      <View className="mt-3">
+        <AppButton label="Marks" variant="secondary" onPress={() => router.push("/marks")} />
       </View>
     </View>
   );

@@ -143,6 +143,26 @@ export const timetablePublishSchema = z.object({
   sectionId: z.string().uuid(),
 });
 
+export const examCreateSchema = z.object({
+  classId: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  subjectId: z.string().uuid(),
+  name: z.string().min(1),
+  examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  maxScore: z.number().int().positive(),
+});
+
+export const marksDraftSchema = z.object({
+  marks: z
+    .array(
+      z.object({
+        studentId: z.string().uuid(),
+        score: z.number().int().min(0),
+      }),
+    )
+    .min(1),
+});
+
 export const homeworkCreateSchema = z.object({
   classId: z.string().uuid(),
   sectionId: z.string().uuid(),

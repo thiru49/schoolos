@@ -43,6 +43,8 @@ model School {
   homeworkCompletions HomeworkCompletion[]
   subjects       Subject[]
   timetablePeriods TimetablePeriod[]
+  exams            Exam[]
+  marks            Mark[]
 
   @@map("schools")
 }
@@ -179,6 +181,7 @@ model Class {
   students     Student[]
   homeworks    Homework[]
   timetablePeriods TimetablePeriod[]
+  exams            Exam[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -197,6 +200,7 @@ model Section {
   attendance Attendance[]
   homeworks  Homework[]
   timetablePeriods TimetablePeriod[]
+  exams            Exam[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -220,6 +224,7 @@ model Student {
   parents    ParentStudent[]
   attendance Attendance[]
   homeworkCompletions HomeworkCompletion[]
+  marks               Mark[]
 
   @@unique([id, schoolId])
   @@unique([userId, schoolId])
@@ -393,6 +398,7 @@ model Subject {
 
   school   School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   periods  TimetablePeriod[]
+  exams    Exam[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, name])
@@ -421,4 +427,45 @@ model TimetablePeriod {
   @@unique([schoolId, sectionId, weekday, startTime])
   @@index([schoolId, sectionId, weekday])
   @@map("timetable_periods")
+}
+
+model Exam {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @map("school_id") @db.Uuid
+  classId   String   @map("class_id") @db.Uuid
+  sectionId String   @map("section_id") @db.Uuid
+  subjectId String   @map("subject_id") @db.Uuid
+  name      String
+  examDate  DateTime @map("exam_date") @db.Date
+  maxScore  Int      @map("max_score")
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId, schoolId], references: [id, schoolId])
+  section Section @relation(fields: [sectionId, schoolId], references: [id, schoolId])
+  subject Subject @relation(fields: [subjectId, schoolId], references: [id, schoolId])
+  marks   Mark[]
+
+  @@unique([id, schoolId])
+  @@index([schoolId, sectionId])
+  @@map("exams")
+}
+
+model Mark {
+  id        String @id @default(uuid()) @db.Uuid
+  schoolId  String @map("school_id") @db.Uuid
+  examId    String @map("exam_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  score     Int
+  status    String
+  updatedByUserId String @map("updated_by_user_id") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  exam    Exam    @relation(fields: [examId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  student Student @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, examId, studentId])
+  @@index([schoolId, examId, status])
+  @@map("marks")
 }
