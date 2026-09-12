@@ -48,6 +48,16 @@ export const rosterQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+export const attendanceReportSchema = z.object({
+  sectionId: z.string().uuid(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const pushTokenSchema = z.object({
+  token: z.string().min(1),
+});
+
 export const selectChildSchema = z.object({
   studentId: z.string().uuid(),
 });

@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PERMISSIONS } from "@schoolos/permissions";
-import { attendanceQuerySchema, markAttendanceSchema, rosterQuerySchema } from "@schoolos/validation";
+import {
+  attendanceQuerySchema,
+  attendanceReportSchema,
+  markAttendanceSchema,
+  rosterQuerySchema,
+} from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -87,6 +92,23 @@ export class AttendanceService {
 
       const absences = input.marks.filter((m) => m.status === "A");
       for (const a of absences) {
+        const student = students.find((s) => s.id === a.studentId);
+        const links = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, studentId: a.studentId },
+          include: { parent: true },
+        });
+        for (const link of links) {
+          await tx.inboxNotification.create({
+            data: {
+              schoolId: acl.schoolId,
+              userId: link.parent.userId,
+              studentId: a.studentId,
+              kind: "absence",
+              title: "Attendance marked — Absent",
+              body: `${student?.fullName ?? "Student"} was marked absent on ${input.date}.`,
+            },
+          });
+        }
         await this.notifications.enqueueAbsence({
           schoolId: acl.schoolId,
           studentId: a.studentId,
@@ -149,4 +171,58 @@ export class AttendanceService {
       throw new BadRequestException("Provide studentId or sectionId+date");
     });
   }
+
+  async report(acl: RequestAcl, query: unknown) {
+    const q = attendanceReportSchema.parse(query);
+    if (q.from > q.to) throw new BadRequestException("from must be on or before to");
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const section = await this.repo.findSection(tx, acl.schoolId, q.sectionId);
+      if (!section) throw new NotFoundException("Section not found");
+      this.policy.assertCanReadSection(acl, section.id, section.classId);
+      const students = await this.repo.listSectionStudents(tx, acl.schoolId, section.id);
+      const rows = await this.repo.listRange(
+        tx,
+        acl.schoolId,
+        section.id,
+        parseDate(q.from),
+        parseDate(q.to),
+      );
+      const byStudent = new Map<string, { P: number; A: number; L: number; H: number }>();
+      for (const s of students) byStudent.set(s.id, { P: 0, A: 0, L: 0, H: 0 });
+      for (const r of rows) {
+        const bucket = byStudent.get(r.studentId);
+        if (!bucket) continue;
+        if (r.status === "P" || r.status === "A" || r.status === "L" || r.status === "H") {
+          bucket[r.status] += 1;
+        }
+      }
+      return {
+        sectionId: section.id,
+        label: `${section.class.name}-${section.name}`,
+        from: q.from,
+        to: q.to,
+        rows: students.map((s) => ({
+          studentId: s.id,
+          fullName: s.fullName,
+          admissionNumber: s.admissionNumber,
+          ...byStudent.get(s.id)!,
+        })),
+      };
+    });
+  }
+
+  async exportCsv(acl: RequestAcl, query: unknown) {
+    const q = rosterQuerySchema.parse(query);
+    const roster = await this.roster(acl, q);
+    const header = "admission_number,full_name,status";
+    const lines = roster.rows.map(
+      (r) => `${csv(r.admissionNumber)},${csv(r.fullName)},${csv(r.status ?? "")}`,
+    );
+    return `${header}\n${lines.join("\n")}\n`;
+  }
+}
+
+function csv(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
 }

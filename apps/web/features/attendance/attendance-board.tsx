@@ -5,6 +5,7 @@ import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS, type AttendanceStatus } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
+import { getAccessToken } from "../../lib/session";
 import { useAppBranding } from "../../lib/branding-context";
 import { todayIso } from "../../lib/utils";
 import { Badge, statusBadge } from "../../components/ui/badge";
@@ -21,6 +22,7 @@ type Row = { studentId: string; fullName: string; status: string | null };
 export function AttendanceBoard() {
   const { acl } = useAppBranding();
   const canMark = acl.permissions.includes(PERMISSIONS.ATTENDANCE_MARK);
+  const canExport = acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE);
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionId, setSectionId] = useState("");
   const [date, setDate] = useState(todayIso());
@@ -90,6 +92,25 @@ export function AttendanceBoard() {
     if (sectionId) void loadRoster();
   }, [sectionId, date, loadRoster]);
 
+  async function downloadCsv() {
+    const token = getAccessToken();
+    const path = api().attendanceApi.exportUrl(sectionId, date);
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}${path}`, {
+      headers: { Authorization: `Bearer ${token ?? ""}` },
+    });
+    if (!res.ok) {
+      toast.error("Export failed");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function setStatus(studentId: string, status: AttendanceStatus) {
     setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
   }
@@ -143,6 +164,11 @@ export function AttendanceBoard() {
           value={date}
           onChange={(e) => setDate(e.target.value)}
         />
+        {canExport && sectionId ? (
+          <Button variant="secondary" onClick={() => void downloadCsv()}>
+            Export CSV
+          </Button>
+        ) : null}
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
