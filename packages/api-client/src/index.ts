@@ -120,11 +120,21 @@ export function createApiClient(options: {
         }>(`/attendance/report?sectionId=${sectionId}&from=${from}&to=${to}`),
       exportUrl: (sectionId: string, date: string) =>
         `/attendance/export?sectionId=${sectionId}&date=${date}`,
-      list: (query: { studentId?: string; sectionId?: string; date?: string }) => {
+      exportRangeUrl: (sectionId: string, from: string, to: string) =>
+        `/attendance/export?sectionId=${sectionId}&from=${from}&to=${to}`,
+      list: (query: {
+        studentId?: string;
+        sectionId?: string;
+        date?: string;
+        from?: string;
+        to?: string;
+      }) => {
         const q = new URLSearchParams();
         if (query.studentId) q.set("studentId", query.studentId);
         if (query.sectionId) q.set("sectionId", query.sectionId);
         if (query.date) q.set("date", query.date);
+        if (query.from) q.set("from", query.from);
+        if (query.to) q.set("to", query.to);
         return request<{
           records: {
             studentId: string;

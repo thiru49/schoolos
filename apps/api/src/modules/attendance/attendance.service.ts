@@ -9,6 +9,7 @@ import {
 import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
+import { formatReportCsv, formatRosterCsv, parseAttendanceExportQuery } from "./attendance-csv";
 import { AttendancePolicy } from "./attendance.policy";
 import { AttendanceRepository } from "./attendance.repository";
 
@@ -122,6 +123,7 @@ export class AttendanceService {
 
   async list(acl: RequestAcl, query: unknown) {
     const q = attendanceQuerySchema.parse(query);
+    if (q.from && q.to && q.from > q.to) throw new BadRequestException("from must be on or before to");
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       if (q.studentId) {
         const student = await this.repo.findStudent(tx, acl.schoolId, q.studentId);
@@ -212,17 +214,12 @@ export class AttendanceService {
   }
 
   async exportCsv(acl: RequestAcl, query: unknown) {
-    const q = rosterQuerySchema.parse(query);
-    const roster = await this.roster(acl, q);
-    const header = "admission_number,full_name,status";
-    const lines = roster.rows.map(
-      (r) => `${csv(r.admissionNumber)},${csv(r.fullName)},${csv(r.status ?? "")}`,
-    );
-    return `${header}\n${lines.join("\n")}\n`;
+    const parsed = parseAttendanceExportQuery(query);
+    if (parsed.kind === "range") {
+      const report = await this.report(acl, parsed);
+      return formatReportCsv(report.rows);
+    }
+    const roster = await this.roster(acl, parsed);
+    return formatRosterCsv(roster.rows);
   }
-}
-
-function csv(value: string) {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
 }

@@ -20,7 +20,12 @@ export class NotificationsService implements OnModuleDestroy {
 
   async enqueueAbsence(payload: { schoolId: string; studentId: string; date: string }) {
     try {
-      await this.getQueue().add("absence", payload, { removeOnComplete: true });
+      await this.getQueue().add("absence", payload, {
+        removeOnComplete: true,
+        removeOnFail: 50,
+        attempts: 5,
+        backoff: { type: "exponential", delay: 2000 },
+      });
     } catch (err) {
       this.log.warn(`Absence enqueue skipped: ${(err as Error).message}`);
     }
@@ -62,7 +67,7 @@ export class NotificationsService implements OnModuleDestroy {
     const input = pushTokenSchema.parse(body);
     await this.prisma.withSchool(acl.schoolId, async (tx) => {
       await tx.user.update({
-        where: { id: acl.userId },
+        where: { id_schoolId: { id: acl.userId, schoolId: acl.schoolId } },
         data: { pushToken: input.token },
       });
     });

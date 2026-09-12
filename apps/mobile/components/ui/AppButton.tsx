@@ -17,7 +17,10 @@ export function AppButton({
       {...props}
       disabled={loading || props.disabled}
       className="items-center rounded-xl px-4 py-3"
-      style={[{ backgroundColor: bg, opacity: loading || props.disabled ? 0.6 : 1 }, props.style]}
+      style={(state) => [
+        { backgroundColor: bg, opacity: loading || props.disabled ? 0.6 : 1 },
+        typeof props.style === "function" ? props.style(state) : props.style,
+      ]}
     >
       {loading ? <ActivityIndicator color={fg} /> : <AppText style={{ color: fg, fontWeight: "600" }}>{label}</AppText>}
     </Pressable>
