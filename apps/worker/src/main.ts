@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Worker } from "bullmq";
+import { classifyExpoPushResponse } from "./expo-push";
 
 const url = process.env.REDIS_URL ?? "redis://localhost:6379";
 const prisma = new PrismaClient();
@@ -8,23 +9,51 @@ type AbsenceJob = { schoolId: string; studentId: string; date: string };
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
-async function sendExpoPush(token: string, title: string, body: string) {
-  const res = await fetch(EXPO_PUSH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({
-      to: token,
-      title,
-      body,
-      sound: "default",
-    }),
+async function clearStalePushToken(schoolId: string, token: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.school_id', ${schoolId}, true)`;
+    await tx.user.updateMany({
+      where: { schoolId, pushToken: token },
+      data: { pushToken: null },
+    });
   });
-  if (!res.ok) {
-    throw new Error(`Expo push failed ${res.status} ${await res.text()}`);
+}
+
+async function sendExpoPush(schoolId: string, token: string, title: string, body: string) {
+  let res: Response;
+  try {
+    res = await fetch(EXPO_PUSH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        to: token,
+        title,
+        body,
+        sound: "default",
+      }),
+    });
+  } catch (err) {
+    throw new Error(`Expo push network error: ${(err as Error).message}`);
   }
-  const payload = (await res.json()) as { data?: { status?: string; message?: string } };
-  if (payload.data?.status === "error") {
-    throw new Error(payload.data.message ?? "Expo push rejected");
+
+  let payload: unknown = {};
+  try {
+    payload = await res.json();
+  } catch {
+    payload = { message: await res.text().catch(() => "") };
+  }
+
+  const outcome = classifyExpoPushResponse(res.status, payload);
+  if (outcome.unregister) {
+    await clearStalePushToken(schoolId, token);
+    console.log("Expo push token cleared (DeviceNotRegistered)");
+    return;
+  }
+  if (!outcome.ok && outcome.retry) {
+    throw new Error(outcome.message);
+  }
+  if (!outcome.ok) {
+    console.error("Expo push failed closed", outcome.message);
   }
 }
 
@@ -46,11 +75,14 @@ async function deliverAbsence(data: AbsenceJob) {
     return;
   }
 
-  await Promise.all(
-    tokens.map((token) =>
-      sendExpoPush(token, "Attendance marked — Absent", `Absence recorded for ${data.date}`),
-    ),
-  );
+  for (const token of tokens) {
+    await sendExpoPush(
+      data.schoolId,
+      token,
+      "Attendance marked — Absent",
+      `Absence recorded for ${data.date}`,
+    );
+  }
 }
 
 const worker = new Worker(

@@ -278,7 +278,7 @@ export function AttendanceBoard() {
               Mark all Present
             </Button>
             <Button onClick={() => void save()} disabled={state === "saving"}>
-              {state === "saving" ? "Saving…" : "Submit attendance"}
+              {state === "saving" ? "Saving…" : "Save attendance"}
             </Button>
           </div>
         </div>

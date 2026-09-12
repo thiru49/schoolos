@@ -67,7 +67,7 @@ export class NotificationsService implements OnModuleDestroy {
     const input = pushTokenSchema.parse(body);
     await this.prisma.withSchool(acl.schoolId, async (tx) => {
       await tx.user.update({
-        where: { id: acl.userId },
+        where: { id_schoolId: { id: acl.userId, schoolId: acl.schoolId } },
         data: { pushToken: input.token },
       });
     });

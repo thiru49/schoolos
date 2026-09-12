@@ -65,6 +65,19 @@ async function main() {
   if (!markOk.ok) throw new Error("mark 8-A failed " + (await markOk.text()));
 
   const parent = await login("arulneri", "9000000001", "parent");
+  const unauthPush = await fetch(`${API}/me/push-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: "ExponentPushToken[no-auth]" }),
+  });
+  if (unauthPush.status !== 401) throw new Error("push-token must require authentication");
+
+  const invalidPush = await authed(parent.accessToken, "/me/push-token", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  if (invalidPush.ok) throw new Error("empty push-token must be rejected");
+
   const pushSave = await authed(parent.accessToken, "/me/push-token", {
     method: "POST",
     body: JSON.stringify({ token: "ExponentPushToken[attendance-slice-test]" }),
@@ -82,6 +95,28 @@ async function main() {
   const mariaId = mariaAcl.scopes.find((s) => s.type === "self")?.studentId;
   if (!mariaId) throw new Error("maria self scope missing");
 
+  const admin = await login("arulneri", "superadmin", "school_super_admin");
+  const adminSectionsRes = await authed(admin.accessToken, "/academics/sections");
+  const adminSections = (await adminSectionsRes.json()) as { id: string; label: string }[];
+  const nineBAdmin = adminSections.find((s) => s.label === "9-B");
+  if (!nineBAdmin) throw new Error("9-B missing from admin sections");
+
+  const teacherRosterNineB = await authed(
+    teacher.accessToken,
+    `/attendance/roster?sectionId=${nineBAdmin.id}&date=${today()}`,
+  );
+  if (teacherRosterNineB.ok) throw new Error("teacher 8-A must not read 9-B roster");
+
+  const teacherMarksNineB = await authed(teacher.accessToken, "/attendance", {
+    method: "PUT",
+    body: JSON.stringify({
+      sectionId: nineBAdmin.id,
+      date: today(),
+      marks: [{ studentId: mariaId, status: "P" }],
+    }),
+  });
+  if (teacherMarksNineB.ok) throw new Error("teacher 8-A must not mark 9-B");
+
   const teacherMarksMaria = await authed(teacher.accessToken, "/attendance", {
     method: "PUT",
     body: JSON.stringify({
@@ -96,6 +131,16 @@ async function main() {
   if (parentReadsMaria.ok) throw new Error("parent of Arun must not read Maria");
 
   const teacherB = await login("school-b", "TCH-B", "teacher");
+  const schoolBPush = await authed(teacherB.accessToken, "/me/push-token", {
+    method: "POST",
+    body: JSON.stringify({ token: "ExponentPushToken[school-b]" }),
+  });
+  if (!schoolBPush.ok) throw new Error("school B must save its own push token");
+  const parentPushAgain = await authed(parent.accessToken, "/me/push-token", {
+    method: "POST",
+    body: JSON.stringify({ token: "ExponentPushToken[attendance-slice-test]" }),
+  });
+  if (!parentPushAgain.ok) throw new Error("school A parent push token must remain writable after school B save");
   const cross = await authed(
     teacherB.accessToken,
     `/attendance/roster?sectionId=${eightA.id}&date=${today()}`,
@@ -151,7 +196,9 @@ async function main() {
     if (body.includes("Arun")) throw new Error("school B exported school A attendance");
   }
 
-  console.log("PASS: branding, 8-A mark, parent Arun, deny 9-B, deny cross-tenant, history range, CSV export");
+  console.log(
+    "PASS: branding, 8-A mark, parent Arun, deny 9-B, deny cross-tenant, history range, CSV export, push-token auth",
+  );
 }
 
 main().catch((e) => {

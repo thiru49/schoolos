@@ -41,6 +41,7 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
 
   const range = useMemo(() => monthRange(year, month), [year, month]);
   const byDate = useMemo(() => new Map(rows.map((r) => [r.date, r.status])), [rows]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -97,6 +98,7 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
     const next = new Date(year, month + delta, 1);
     setYear(next.getFullYear());
     setMonth(next.getMonth());
+    setSelectedDay(null);
   }
 
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7;
@@ -156,8 +158,15 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
                           ? theme.colors.warning
                           : theme.colors.ink;
                   return (
-                    <View key={`${week}-${i}`} className="flex-1 items-center py-2">
-                      <AppText variant="caption" color={status ? color : undefined}>
+                    <Pressable
+                      key={`${week}-${i}`}
+                      className="flex-1 items-center py-2"
+                      onPress={() => day && setSelectedDay(iso)}
+                    >
+                      <AppText
+                        variant="caption"
+                        color={iso === selectedDay ? theme.colors.primary : status ? color : undefined}
+                      >
                         {day ?? ""}
                       </AppText>
                       {status ? (
@@ -165,7 +174,7 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
                           {status}
                         </AppText>
                       ) : null}
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -178,7 +187,7 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
             </View>
           ) : (
             <View className="mt-4">
-              {rows.map((r) => (
+              {(selectedDay ? rows.filter((r) => r.date === selectedDay) : rows).map((r) => (
                 <View key={`${r.studentId}-${r.date}`} className="mb-2 rounded-2xl bg-white p-3">
                   <AppText variant="label">{r.date}</AppText>
                   <AppText variant="caption">

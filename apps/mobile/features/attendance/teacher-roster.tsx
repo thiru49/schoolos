@@ -121,11 +121,19 @@ export function TeacherRoster() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      <AppButton label="Back" variant="secondary" onPress={() => router.back()} style={{ marginHorizontal: 16 }} />
-      <AppText variant="title" color={theme.colors.primary} style={{ paddingHorizontal: 16, marginTop: 12 }}>
-        Attendance · {label}
-      </AppText>
-      <AppText style={{ paddingHorizontal: 16, marginTop: 4 }}>வருகை</AppText>
+      <View className="flex-row items-center justify-between px-4">
+        <Pressable onPress={() => router.back()} className="pr-3 py-2">
+          <AppText variant="title" color={theme.colors.primary}>
+            ←
+          </AppText>
+        </Pressable>
+        <View className="flex-1">
+          <AppText variant="title" color={theme.colors.primary}>
+            Class {label}
+          </AppText>
+          <AppText variant="caption">Today · வருகை</AppText>
+        </View>
+      </View>
 
       {sections.length > 1 ? (
         <ScrollView horizontal className="mt-3" contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
@@ -198,6 +206,7 @@ export function TeacherRoster() {
                     <StatusChip
                       key={s}
                       status={s}
+                      compact
                       selected={r.status === s}
                       onPress={() =>
                         setRows((prev) =>
@@ -215,7 +224,7 @@ export function TeacherRoster() {
             style={{ backgroundColor: theme.colors.background }}
           >
             <AppButton
-              label={state === "saving" ? "Saving…" : "Submit attendance"}
+              label={state === "saving" ? "Saving…" : "Save attendance"}
               loading={state === "saving"}
               onPress={() => void save()}
             />

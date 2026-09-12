@@ -8,10 +8,12 @@ export function StatusChip({
   status,
   selected,
   onPress,
+  compact,
 }: {
   status: string;
   selected?: boolean;
   onPress?: () => void;
+  compact?: boolean;
 }) {
   const { theme } = useBranding();
   const color =
@@ -23,7 +25,7 @@ export function StatusChip({
       style={{ backgroundColor: selected ? color : "#e2e8f0" }}
     >
       <AppText variant="caption" color={selected ? "white" : theme.colors.ink}>
-        {LABELS[status] ?? status}
+        {compact ? status : LABELS[status] ?? status}
       </AppText>
     </Pressable>
   );
