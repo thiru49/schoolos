@@ -1,12 +1,18 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useBranding } from "../../features/branding/branding-provider";
+import { AppText } from "../../components/ui/AppText";
+import { EmptyState } from "../../components/states/Feedback";
 
 export default function Updates() {
   const { theme } = useBranding();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background, padding: 24, paddingTop: 64 }}>
-      <Text style={{ fontSize: 22, fontWeight: "700", color: theme.colors.primary }}>Updates</Text>
-      <Text style={{ marginTop: 8 }}>No updates yet.</Text>
+    <View className="flex-1 px-6 pt-16" style={{ backgroundColor: theme.colors.background }}>
+      <AppText variant="title" color={theme.colors.primary}>
+        Updates
+      </AppText>
+      <View className="mt-6">
+        <EmptyState title="No updates yet" detail="Notices are not part of this slice." />
+      </View>
     </View>
   );
 }

@@ -9,15 +9,20 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.3.3",
     "@schoolos/api-client": "workspace:*",
     "@schoolos/permissions": "workspace:*",
     "@schoolos/types": "workspace:*",
     "@schoolos/ui": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
     "next": "^15.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "sonner": "^2.0.7"
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

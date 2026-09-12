@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { useRouter } from "expo-router";
 import { api } from "../services/api";
 import { getAccess, getSlug } from "../services/storage";
 import { useBranding } from "../features/branding/branding-provider";
+import { AppText } from "../components/ui/AppText";
+import { AppButton } from "../components/ui/AppButton";
 
 export default function Splash() {
   const router = useRouter();
@@ -20,8 +22,7 @@ export default function Splash() {
       const token = await getAccess();
       if (token) {
         try {
-          const acl = await client.me.acl();
-          setAcl(acl);
+          setAcl(await client.me.acl());
           router.replace("/(tabs)/home");
           return;
         } catch {
@@ -40,15 +41,20 @@ export default function Splash() {
   }, []);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.primaryDark, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ color: "white", fontSize: theme.typography.scale.display, fontWeight: "700" }}>
+    <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: theme.colors.primaryDark }}>
+      <AppText variant="display" color="white">
         {branding?.schoolName ?? "SchoolOS"}
-      </Text>
-      <Text style={{ color: theme.colors.accent, marginTop: 8 }}>{branding?.tagline ?? ""}</Text>
+      </AppText>
+      <AppText variant="body" color={theme.colors.accent} style={{ marginTop: 8 }}>
+        {branding?.tagline ?? ""}
+      </AppText>
+      <AppText variant="caption" color="white" style={{ marginTop: 24, opacity: 0.7 }}>
+        {branding?.location ?? ""}
+      </AppText>
       {error ? (
-        <Pressable onPress={() => void load()} style={{ marginTop: 24 }}>
-          <Text style={{ color: "white" }}>{error} — Retry</Text>
-        </Pressable>
+        <View className="mt-8 w-full">
+          <AppButton label={`${error} — Retry`} onPress={() => void load()} />
+        </View>
       ) : (
         <ActivityIndicator color="white" style={{ marginTop: 24 }} />
       )}
