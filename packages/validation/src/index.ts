@@ -163,6 +163,19 @@ export const marksDraftSchema = z.object({
     .min(1),
 });
 
+export const feeHeadCreateSchema = z.object({
+  name: z.string().min(1),
+  amount: z.number().int().positive(),
+});
+
+export const feeRecordSchema = z.object({
+  studentId: z.string().uuid(),
+  feeHeadId: z.string().uuid(),
+  amount: z.number().int().positive(),
+  method: z.enum(["cash", "upi", "bank"]),
+  note: z.string().optional(),
+});
+
 export const homeworkCreateSchema = z.object({
   classId: z.string().uuid(),
   sectionId: z.string().uuid(),
