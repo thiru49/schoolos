@@ -213,9 +213,18 @@ export function AttendanceBoard() {
           {canMark ? (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <Badge variant="muted">{summary.total} students</Badge>
-              <Button onClick={() => void save()} disabled={state === "saving"}>
-                {state === "saving" ? "Saving…" : "Submit attendance"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={state === "saving"}
+                  onClick={() => setRows((prev) => prev.map((r) => ({ ...r, status: "P" })))}
+                >
+                  Mark all Present
+                </Button>
+                <Button onClick={() => void save()} disabled={state === "saving"}>
+                  {state === "saving" ? "Saving…" : "Submit attendance"}
+                </Button>
+              </div>
             </div>
           ) : null}
         </div>
