@@ -4,6 +4,8 @@ Multi-tenant school SaaS. Implementation follows `SCHOOL_SAAS_PROJECT_BLUEPRINT.
 
 **This commit is the first vertical slice only:** tenant branding, auth + ACL, attendance mark/read, isolation tests. Homework, fees, exams, and the rest of the 56-screen catalogue are not built yet.
 
+RLS, composite tenant foreign keys, and `get_public_branding()` are applied by **Prisma migrations**, not by seed.
+
 ## Stack
 
 - Mobile: React Native + Expo
@@ -49,6 +51,7 @@ Isolation fixture tenant: `school-b` / teacher `TCH-B`.
 
 ```bash
 pnpm tsx tests/security/attendance-isolation.ts
+pnpm tsx tests/security/tenant-db-integrity.ts
 pnpm --filter @schoolos/api test
 ```
 

@@ -8,23 +8,26 @@ datasource db {
 }
 
 model School {
-  id               String   @id @default(uuid()) @db.Uuid
-  slug             String   @unique
-  name             String
-  tagline          String
-  location         String
-  logoUrl          String?  @map("logo_url")
-  poweredBy        String   @map("powered_by")
-  receiptPrefix    String   @map("receipt_prefix")
-  defaultLanguage  String   @default("en") @map("default_language")
-  attendanceMode   String   @default("daily") @map("attendance_mode")
-  theme            Json
-  typography       Json
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid()) @db.Uuid
+  slug            String   @unique
+  name            String
+  tagline         String
+  location        String
+  logoUrl         String?  @map("logo_url")
+  poweredBy       String   @map("powered_by")
+  receiptPrefix   String   @map("receipt_prefix")
+  defaultLanguage String   @default("en") @map("default_language")
+  attendanceMode  String   @default("daily") @map("attendance_mode")
+  theme           Json
+  typography      Json
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   users          User[]
   roles          Role[]
+  userRoles      UserRole[]
+  userScopes     UserScope[]
+  rolePermissions RolePermission[]
   academicYears  AcademicYear[]
   classes        Class[]
   sections       Section[]
@@ -49,32 +52,34 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  school        School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  userRoles     UserRole[]
-  userScopes    UserScope[]
-  student       Student?
-  parent        Parent?
-  teacher       Teacher?
-  refreshTokens RefreshToken[]
-  markedAttendance Attendance[] @relation("MarkedBy")
-  auditLogs     AuditLog[]
+  school           School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userRoles        UserRole[]
+  userScopes       UserScope[]
+  student          Student?
+  parent           Parent?
+  teacher          Teacher?
+  refreshTokens    RefreshToken[]
+  markedAttendance Attendance[]   @relation("MarkedBy")
+  auditLogs        AuditLog[]
 
+  @@unique([id, schoolId])
   @@unique([schoolId, identifier])
   @@index([schoolId])
   @@map("users")
 }
 
 model Role {
-  id        String  @id @default(uuid()) @db.Uuid
-  schoolId  String  @map("school_id") @db.Uuid
-  code      String
-  name      String
-  isSystem  Boolean @default(true) @map("is_system")
+  id       String  @id @default(uuid()) @db.Uuid
+  schoolId String  @map("school_id") @db.Uuid
+  code     String
+  name     String
+  isSystem Boolean @default(true) @map("is_system")
 
   school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
   userRoles       UserRole[]
 
+  @@unique([id, schoolId])
   @@unique([schoolId, code])
   @@map("roles")
 }
@@ -94,49 +99,62 @@ model Permission {
 model RolePermission {
   roleId       String @map("role_id") @db.Uuid
   permissionId String @map("permission_id") @db.Uuid
+  schoolId     String @map("school_id") @db.Uuid
 
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  school     School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Cascade)
   permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([schoolId])
   @@map("role_permissions")
 }
 
 model UserRole {
-  userId String @map("user_id") @db.Uuid
-  roleId String @map("role_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  roleId   String @map("role_id") @db.Uuid
+  schoolId String @map("school_id") @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   @@id([userId, roleId])
+  @@index([schoolId])
   @@map("user_roles")
 }
 
 model UserScope {
   id        String  @id @default(uuid()) @db.Uuid
+  schoolId  String  @map("school_id") @db.Uuid
   userId    String  @map("user_id") @db.Uuid
+  /// school | class | section | subject | self | children
   scopeType String  @map("scope_type")
   classId   String? @map("class_id") @db.Uuid
   sectionId String? @map("section_id") @db.Uuid
   subjectId String? @map("subject_id") @db.Uuid
   studentId String? @map("student_id") @db.Uuid
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  // class/section/student composite FKs + scope_type CHECKs are in SQL migrations.
+  // Prisma cannot model optional composite FKs with a required schoolId.
 
   @@index([userId])
+  @@index([schoolId])
   @@map("user_scopes")
 }
 
 model AcademicYear {
-  id        String  @id @default(uuid()) @db.Uuid
-  schoolId  String  @map("school_id") @db.Uuid
-  name      String
-  isActive  Boolean @default(true) @map("is_active")
+  id       String  @id @default(uuid()) @db.Uuid
+  schoolId String  @map("school_id") @db.Uuid
+  name     String
+  isActive Boolean @default(true) @map("is_active")
 
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   classes Class[]
 
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@map("academic_years")
 }
@@ -148,10 +166,11 @@ model Class {
   name           String
 
   school       School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId, schoolId], references: [id, schoolId], onDelete: Cascade)
   sections     Section[]
   students     Student[]
 
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@map("classes")
 }
@@ -162,48 +181,53 @@ model Section {
   classId  String @map("class_id") @db.Uuid
   name     String
 
-  school      School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
-  students    Student[]
-  attendance  Attendance[]
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class      Class        @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  students   Student[]
+  attendance Attendance[]
 
+  @@unique([id, schoolId])
   @@index([schoolId])
   @@map("sections")
 }
 
 model Student {
-  id               String @id @default(uuid()) @db.Uuid
-  schoolId         String @map("school_id") @db.Uuid
-  userId           String @unique @map("user_id") @db.Uuid
-  admissionNumber  String @map("admission_number")
-  fullName         String @map("full_name")
-  classId          String @map("class_id") @db.Uuid
-  sectionId        String @map("section_id") @db.Uuid
-  status           String @default("active")
+  id              String @id @default(uuid()) @db.Uuid
+  schoolId        String @map("school_id") @db.Uuid
+  userId          String @unique @map("user_id") @db.Uuid
+  admissionNumber String @map("admission_number")
+  fullName        String @map("full_name")
+  classId         String @map("class_id") @db.Uuid
+  sectionId       String @map("section_id") @db.Uuid
+  status          String @default("active")
 
-  school   School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  class    Class           @relation(fields: [classId], references: [id])
-  section  Section         @relation(fields: [sectionId], references: [id])
-  parents  ParentStudent[]
+  school     School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user       User            @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  class      Class           @relation(fields: [classId, schoolId], references: [id, schoolId])
+  section    Section         @relation(fields: [sectionId, schoolId], references: [id, schoolId])
+  parents    ParentStudent[]
   attendance Attendance[]
 
+  @@unique([id, schoolId])
+  @@unique([userId, schoolId])
   @@unique([schoolId, admissionNumber])
   @@index([schoolId, sectionId])
   @@map("students")
 }
 
 model Parent {
-  id        String  @id @default(uuid()) @db.Uuid
-  schoolId  String  @map("school_id") @db.Uuid
-  userId    String  @unique @map("user_id") @db.Uuid
-  fullName  String  @map("full_name")
-  contact   String?
+  id       String  @id @default(uuid()) @db.Uuid
+  schoolId String  @map("school_id") @db.Uuid
+  userId   String  @unique @map("user_id") @db.Uuid
+  fullName String  @map("full_name")
+  contact  String?
 
   school   School          @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
   children ParentStudent[]
 
+  @@unique([id, schoolId])
+  @@unique([userId, schoolId])
   @@index([schoolId])
   @@map("parents")
 }
@@ -214,8 +238,8 @@ model ParentStudent {
   studentId String @map("student_id") @db.Uuid
 
   school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  Parent  @relation(fields: [parentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  student Student @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   @@id([parentId, studentId])
   @@index([schoolId])
@@ -230,8 +254,10 @@ model Teacher {
   fullName   String @map("full_name")
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
+  @@unique([id, schoolId])
+  @@unique([userId, schoolId])
   @@unique([schoolId, employeeId])
   @@map("teachers")
 }
@@ -248,9 +274,9 @@ model Attendance {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   school   School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  section  Section @relation(fields: [sectionId], references: [id])
-  markedBy User    @relation("MarkedBy", fields: [markedByUserId], references: [id])
+  student  Student @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  section  Section @relation(fields: [sectionId, schoolId], references: [id, schoolId])
+  markedBy User    @relation("MarkedBy", fields: [markedByUserId, schoolId], references: [id, schoolId])
 
   @@unique([schoolId, studentId, date])
   @@index([schoolId, sectionId, date])
@@ -258,17 +284,17 @@ model Attendance {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  schoolId   String   @map("school_id") @db.Uuid
-  actorUserId String  @map("actor_user_id") @db.Uuid
-  action     String
-  resource   String
-  resourceId String?  @map("resource_id")
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid()) @db.Uuid
+  schoolId    String   @map("school_id") @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  action      String
+  resource    String
+  resourceId  String?  @map("resource_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  actor  User   @relation(fields: [actorUserId], references: [id])
+  actor  User   @relation(fields: [actorUserId, schoolId], references: [id, schoolId])
 
   @@index([schoolId, createdAt])
   @@map("audit_logs")
@@ -283,7 +309,7 @@ model RefreshToken {
   createdAt DateTime @default(now()) @map("created_at")
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
 
   @@index([tokenHash])
   @@map("refresh_tokens")

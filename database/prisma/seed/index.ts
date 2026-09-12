@@ -11,45 +11,6 @@ async function setSchool(schoolId: string) {
   await prisma.$executeRaw`SELECT set_config('app.school_id', ${schoolId}, false)`;
 }
 
-const TENANT_TABLES = [
-  "schools",
-  "users",
-  "roles",
-  "academic_years",
-  "classes",
-  "sections",
-  "students",
-  "parents",
-  "parent_students",
-  "teachers",
-  "attendance",
-  "audit_logs",
-  "refresh_tokens",
-] as const;
-
-async function enableRls() {
-  await prisma.$executeRawUnsafe(`
-    CREATE OR REPLACE FUNCTION get_school_by_slug(p_slug text)
-    RETURNS SETOF schools
-    LANGUAGE sql
-    SECURITY DEFINER
-    SET search_path = public
-    AS $$ SELECT * FROM schools WHERE slug = p_slug; $$;
-  `);
-
-  for (const table of TENANT_TABLES) {
-    const col = table === "schools" ? "id" : "school_id";
-    await prisma.$executeRawUnsafe(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`);
-    await prisma.$executeRawUnsafe(`DROP POLICY IF EXISTS tenant_isolation ON ${table}`);
-    await prisma.$executeRawUnsafe(`
-      CREATE POLICY tenant_isolation ON ${table}
-      USING (${col} = NULLIF(current_setting('app.school_id', true), '')::uuid)
-      WITH CHECK (${col} = NULLIF(current_setting('app.school_id', true), '')::uuid)
-    `);
-  }
-}
-
 async function seedPermissions() {
   for (const code of ALL_PERMISSION_CODES) {
     const [resource, action] = code.split(".");
@@ -81,7 +42,7 @@ async function seedRolesForSchool(schoolId: string) {
       data: permCodes.map((c) => {
         const permissionId = byCode.get(c);
         if (!permissionId) throw new Error(`Missing permission ${c}`);
-        return { roleId: role.id, permissionId };
+        return { roleId: role.id, permissionId, schoolId };
       }),
     });
   }
@@ -105,7 +66,9 @@ async function createUser(opts: {
   const role = await prisma.role.findUniqueOrThrow({
     where: { schoolId_code: { schoolId: opts.schoolId, code: opts.roleCode } },
   });
-  await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
+  await prisma.userRole.create({
+    data: { userId: user.id, roleId: role.id, schoolId: opts.schoolId },
+  });
   return user;
 }
 
@@ -154,7 +117,7 @@ async function seedArulNeri(passwordHash: string) {
     roleCode: ROLE_CODES.SCHOOL_SUPER_ADMIN,
   });
   await prisma.userScope.create({
-    data: { userId: superAdmin.id, scopeType: "school" },
+    data: { schoolId, userId: superAdmin.id, scopeType: "school" },
   });
 
   const teacher = await createUser({
@@ -174,6 +137,7 @@ async function seedArulNeri(passwordHash: string) {
   });
   await prisma.userScope.create({
     data: {
+      schoolId,
       userId: teacher.id,
       scopeType: "section",
       classId: class8.id,
@@ -207,7 +171,7 @@ async function seedArulNeri(passwordHash: string) {
       },
     });
     await prisma.userScope.create({
-      data: { userId: user.id, scopeType: "self", studentId: student.id },
+      data: { schoolId, userId: user.id, scopeType: "self", studentId: student.id },
     });
     createdStudents.push(student);
   }
@@ -234,6 +198,7 @@ async function seedArulNeri(passwordHash: string) {
   });
   await prisma.userScope.create({
     data: {
+      schoolId,
       userId: parentUser.id,
       scopeType: "children",
       studentId: arun.id,
@@ -258,7 +223,7 @@ async function seedArulNeri(passwordHash: string) {
     },
   });
   await prisma.userScope.create({
-    data: { userId: nineBUser.id, scopeType: "self", studentId: maria.id },
+    data: { schoolId, userId: nineBUser.id, scopeType: "self", studentId: maria.id },
   });
 
   return { schoolId, section8A, section9B, teacher, arun, maria };
@@ -307,6 +272,7 @@ async function seedSchoolB(passwordHash: string) {
   });
   await prisma.userScope.create({
     data: {
+      schoolId,
       userId: teacher.id,
       scopeType: "section",
       classId: cls.id,
@@ -338,7 +304,6 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10);
 
   await seedPermissions();
-  await enableRls();
   const a = await seedArulNeri(passwordHash);
   const b = await seedSchoolB(passwordHash);
 
