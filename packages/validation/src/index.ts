@@ -1,0 +1,77 @@
+import { ATTENDANCE_STATUSES } from "@schoolos/permissions";
+import { z } from "zod";
+
+export const loginSchema = z.object({
+  slug: z.string().min(1),
+  roleHint: z
+    .enum([
+      "school_super_admin",
+      "school_admin",
+      "accounts_admin",
+      "academic_admin",
+      "teacher",
+      "parent",
+      "student",
+    ])
+    .optional(),
+  identifier: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+export const markAttendanceSchema = z.object({
+  sectionId: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  marks: z
+    .array(
+      z.object({
+        studentId: z.string().uuid(),
+        status: z.enum(ATTENDANCE_STATUSES),
+      }),
+    )
+    .min(1),
+});
+
+export const attendanceQuerySchema = z.object({
+  studentId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export const rosterQuerySchema = z.object({
+  sectionId: z.string().uuid(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const selectChildSchema = z.object({
+  studentId: z.string().uuid(),
+});
+
+export const brandingUpdateSchema = z.object({
+  schoolName: z.string().min(1).optional(),
+  tagline: z.string().min(1).optional(),
+  location: z.string().min(1).optional(),
+  receiptPrefix: z.string().min(1).optional(),
+  defaultLanguage: z.string().min(2).optional(),
+  attendanceMode: z.enum(["daily"]).optional(),
+  theme: z
+    .object({
+      primary: z.string(),
+      primaryDark: z.string(),
+      accent: z.string(),
+      background: z.string(),
+      success: z.string(),
+      warning: z.string(),
+      danger: z.string(),
+    })
+    .optional(),
+  typography: z.record(z.unknown()).optional(),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;

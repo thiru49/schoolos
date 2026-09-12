@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: schoolos
+      POSTGRES_PASSWORD: schoolos
+      POSTGRES_DB: schoolos
+    ports:
+      - "5433:5432"
+    volumes:
+      - schoolos_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schoolos -d schoolos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: schoolos
+      MINIO_ROOT_PASSWORD: schoolos-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - schoolos_minio:/data
+
+volumes:
+  schoolos_pg:
+  schoolos_minio:

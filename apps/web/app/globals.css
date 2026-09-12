@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #0b3a6e;
+  --color-primary-dark: #082a50;
+  --color-accent: #e8a317;
+  --color-background: #f4f7fb;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-ink: #0f172a;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-body: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-tamil: "Noto Sans Tamil", sans-serif;
+  --text-md: 16px;
+}
+
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+}
