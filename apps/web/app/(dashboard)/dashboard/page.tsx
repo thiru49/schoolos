@@ -1,12 +1,13 @@
 "use client";
 
+import { AppHeader } from "../../../components/shell/app-header";
+import { DashboardView } from "../../../features/dashboard/dashboard-view";
+
 export default function DashboardPage() {
   return (
     <div>
-      <h1 className="font-display text-2xl font-bold text-primary">Dashboard</h1>
-      <p className="mt-2 text-sm text-slate-600">
-        Attendance vertical slice is live. Open Attendance to load a class section.
-      </p>
+      <AppHeader title="Dashboard" subtitle="Overview of school operations in this slice." />
+      <DashboardView />
     </div>
   );
 }

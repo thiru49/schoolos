@@ -3,8 +3,23 @@ import { fallbackColors } from "../tokens/colors";
 import { fallbackTypography } from "../tokens/typography";
 
 export type ResolvedTheme = {
-  colors: typeof fallbackColors;
-  typography: typeof fallbackTypography;
+  colors: {
+    primary: string;
+    primaryDark: string;
+    accent: string;
+    background: string;
+    success: string;
+    warning: string;
+    danger: string;
+    canvas: string;
+    ink: string;
+  };
+  typography: {
+    families: { display: string; body: string; tamil: string };
+    scale: { xs: number; sm: number; md: number; lg: number; xl: number; display: number };
+    lineHeight: { tight: number; normal: number; relaxed: number };
+    weights: { regular: string; medium: string; semibold: string; bold: string };
+  };
   cssVars: Record<string, string>;
 };
 
