@@ -9,16 +9,23 @@ export function ChildSwitcher() {
   const { selectedChild, setSelectedChild, theme } = useBranding();
   const [children, setChildren] = useState<LinkedChild[]>([]);
   const [open, setOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const list = await (await api()).me.children();
       setChildren(list);
       setSelectedChild((cur) => cur ?? list[0] ?? null);
+      setLoaded(true);
     })();
   }, [setSelectedChild]);
 
-  if (children.length === 0) return null;
+  if (!loaded) return null;
+  if (children.length === 0) {
+    return (
+      <AppText variant="caption">No linked children — contact school office</AppText>
+    );
+  }
 
   return (
     <View>
@@ -36,8 +43,11 @@ export function ChildSwitcher() {
             <Pressable
               key={c.studentId}
               onPress={() => {
-                setSelectedChild(c);
-                setOpen(false);
+                void (async () => {
+                  await (await api()).me.selectChild(c.studentId);
+                  setSelectedChild(c);
+                  setOpen(false);
+                })();
               }}
               className="mt-2 rounded-xl bg-white px-4 py-3"
             >

@@ -60,9 +60,7 @@ export function AttendanceScreen() {
     try {
       const client = await api();
       if (isParent) {
-        const childId = selectedChild?.studentId;
-        const children = childId ? [selectedChild!] : await client.me.children();
-        const child = children[0];
+        const child = selectedChild ?? (await client.me.children())[0];
         if (!child) {
           setState("empty");
           setMessage("No linked children — contact school office");
@@ -150,10 +148,19 @@ export function AttendanceScreen() {
       {(state === "loaded" || state === "saving") && rows.length > 0 ? (
         <>
           {canMark ? (
-            <View className="mt-4 flex-row gap-2 px-4">
-              <AppText variant="caption" color={theme.colors.success}>Present {summary.present}</AppText>
-              <AppText variant="caption" color={theme.colors.danger}>Absent {summary.absent}</AppText>
-              <AppText variant="caption" color={theme.colors.warning}>Late {summary.late}</AppText>
+            <View className="mt-4 px-4">
+              <View className="flex-row gap-2">
+                <AppText variant="caption" color={theme.colors.success}>Present {summary.present}</AppText>
+                <AppText variant="caption" color={theme.colors.danger}>Absent {summary.absent}</AppText>
+                <AppText variant="caption" color={theme.colors.warning}>Late {summary.late}</AppText>
+              </View>
+              <View className="mt-2">
+                <AppButton
+                  label="Mark all Present"
+                  variant="secondary"
+                  onPress={() => setRows((prev) => prev.map((r) => ({ ...r, status: "P" })))}
+                />
+              </View>
             </View>
           ) : null}
           {message && state === "loaded" ? (
