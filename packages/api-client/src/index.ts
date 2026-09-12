@@ -135,6 +135,46 @@ export function createApiClient(options: {
         }>(`/attendance?${q.toString()}`);
       },
     },
+    subjects: {
+      list: () => request<{ id: string; name: string }[]>("/subjects"),
+      create: (name: string) => request<{ id: string; name: string }>("/subjects", { method: "POST", body: JSON.stringify({ name }) }),
+    },
+    timetable: {
+      list: (query?: { sectionId?: string; weekday?: number; studentId?: string }) => {
+        const q = new URLSearchParams();
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.weekday) q.set("weekday", String(query.weekday));
+        if (query?.studentId) q.set("studentId", query.studentId);
+        return request<
+          {
+            id: string;
+            weekday: number;
+            startTime: string;
+            endTime: string;
+            published: boolean;
+            subjectName: string;
+            teacherName: string;
+            label: string;
+            subjectId: string;
+            teacherId: string;
+            sectionId: string;
+            classId: string;
+          }[]
+        >(`/timetable?${q.toString()}`);
+      },
+      create: (body: {
+        classId: string;
+        sectionId: string;
+        subjectId: string;
+        teacherId: string;
+        weekday: number;
+        startTime: string;
+        endTime: string;
+      }) => request<unknown>("/timetable", { method: "POST", body: JSON.stringify(body) }),
+      publish: (sectionId: string) =>
+        request<{ published: number }>("/timetable/publish", { method: "POST", body: JSON.stringify({ sectionId }) }),
+      remove: (id: string) => request<{ deleted: boolean }>(`/timetable/${id}`, { method: "DELETE" }),
+    },
     homework: {
       list: (query?: { sectionId?: string; studentId?: string }) => {
         const q = new URLSearchParams();

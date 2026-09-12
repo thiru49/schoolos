@@ -41,6 +41,8 @@ model School {
   inbox          InboxNotification[]
   homeworks      Homework[]
   homeworkCompletions HomeworkCompletion[]
+  subjects       Subject[]
+  timetablePeriods TimetablePeriod[]
 
   @@map("schools")
 }
@@ -176,6 +178,7 @@ model Class {
   sections     Section[]
   students     Student[]
   homeworks    Homework[]
+  timetablePeriods TimetablePeriod[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -193,6 +196,7 @@ model Section {
   students   Student[]
   attendance Attendance[]
   homeworks  Homework[]
+  timetablePeriods TimetablePeriod[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -264,6 +268,7 @@ model Teacher {
 
   school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  timetablePeriods TimetablePeriod[]
 
   @@unique([id, schoolId])
   @@unique([userId, schoolId])
@@ -379,4 +384,41 @@ model HomeworkCompletion {
   @@id([homeworkId, studentId])
   @@index([schoolId])
   @@map("homework_completions")
+}
+
+model Subject {
+  id       String @id @default(uuid()) @db.Uuid
+  schoolId String @map("school_id") @db.Uuid
+  name     String
+
+  school   School            @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  periods  TimetablePeriod[]
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, name])
+  @@map("subjects")
+}
+
+model TimetablePeriod {
+  id        String  @id @default(uuid()) @db.Uuid
+  schoolId  String  @map("school_id") @db.Uuid
+  classId   String  @map("class_id") @db.Uuid
+  sectionId String  @map("section_id") @db.Uuid
+  subjectId String  @map("subject_id") @db.Uuid
+  teacherId String  @map("teacher_id") @db.Uuid
+  weekday   Int
+  startTime String  @map("start_time")
+  endTime   String  @map("end_time")
+  published Boolean @default(false)
+
+  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class   Class   @relation(fields: [classId, schoolId], references: [id, schoolId])
+  section Section @relation(fields: [sectionId, schoolId], references: [id, schoolId])
+  subject Subject @relation(fields: [subjectId, schoolId], references: [id, schoolId])
+  teacher Teacher @relation(fields: [teacherId, schoolId], references: [id, schoolId])
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, sectionId, weekday, startTime])
+  @@index([schoolId, sectionId, weekday])
+  @@map("timetable_periods")
 }

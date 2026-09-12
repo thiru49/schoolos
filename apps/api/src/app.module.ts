@@ -10,6 +10,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { ParentsModule } from "./modules/parents/parents.module";
 import { StudentsModule } from "./modules/students/students.module";
 import { TeachersModule } from "./modules/teachers/teachers.module";
+import { TimetableModule } from "./modules/timetable/timetable.module";
 import { RbacModule } from "./modules/rbac/rbac.module";
 import { TenancyModule } from "./modules/tenancy/tenancy.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -32,6 +33,7 @@ import { JwtOptionalMiddleware } from "./common/middleware/jwt-optional.middlewa
     TeachersModule,
     AttendanceModule,
     HomeworkModule,
+    TimetableModule,
     FilesModule,
     NotificationsModule,
   ],
