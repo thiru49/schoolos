@@ -125,6 +125,24 @@ export const teacherUpdateSchema = z.object({
   fullName: z.string().min(1).optional(),
 });
 
+export const subjectCreateSchema = z.object({
+  name: z.string().min(1),
+});
+
+export const timetablePeriodSchema = z.object({
+  classId: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  subjectId: z.string().uuid(),
+  teacherId: z.string().uuid(),
+  weekday: z.number().int().min(1).max(7),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export const timetablePublishSchema = z.object({
+  sectionId: z.string().uuid(),
+});
+
 export const homeworkCreateSchema = z.object({
   classId: z.string().uuid(),
   sectionId: z.string().uuid(),

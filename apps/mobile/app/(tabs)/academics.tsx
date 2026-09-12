@@ -25,8 +25,11 @@ export default function Academics() {
       <View className="mt-3">
         <AppButton label="Homework" variant="secondary" onPress={() => router.push("/homework")} />
       </View>
+      <View className="mt-3">
+        <AppButton label="Timetable" variant="secondary" onPress={() => router.push("/timetable")} />
+      </View>
       <View className="mt-6">
-        <EmptyState title="Timetable and marks" detail="These modules are not built yet." />
+        <EmptyState title="Exams and marks" detail="These modules are not built yet." />
       </View>
     </View>
   );
