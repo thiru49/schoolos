@@ -29,12 +29,12 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-export function DeniedState({ detail }: { detail: string }) {
+export function DeniedState({ detail, title }: { detail: string; title?: string }) {
   const { theme } = useBranding();
   return (
     <View className="items-center rounded-2xl bg-white px-4 py-16">
       <AppText variant="title" color={theme.colors.primary}>
-        You cannot mark this class
+        {title ?? "You cannot mark this class"}
       </AppText>
       <AppText variant="caption" style={{ marginTop: 8, textAlign: "center" }}>
         {detail}

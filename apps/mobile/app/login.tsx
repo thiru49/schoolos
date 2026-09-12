@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import type { RoleCode } from "@schoolos/types";
 import { api } from "../services/api";
 import { getSlug, setTokens } from "../services/storage";
+import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
 import { AppText } from "../components/ui/AppText";
 import { AppInput } from "../components/ui/AppInput";
@@ -29,6 +30,7 @@ export default function Login() {
       const res = await client.auth.login({ slug, roleHint: role, identifier, password });
       await setTokens(res.accessToken, res.refreshToken);
       setAcl(await (await api()).me.acl());
+      void registerPushToken();
       router.replace("/(tabs)/home");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invalid credentials");

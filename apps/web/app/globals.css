@@ -24,3 +24,9 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-md);
 }
+
+.font-tamil,
+:lang(ta) {
+  font-family: var(--font-tamil);
+  line-height: 1.8;
+}

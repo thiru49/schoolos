@@ -65,6 +65,11 @@ async function main() {
   if (!markOk.ok) throw new Error("mark 8-A failed " + (await markOk.text()));
 
   const parent = await login("arulneri", "9000000001", "parent");
+  const pushSave = await authed(parent.accessToken, "/me/push-token", {
+    method: "POST",
+    body: JSON.stringify({ token: "ExponentPushToken[attendance-slice-test]" }),
+  });
+  if (!pushSave.ok) throw new Error("parent push token save failed " + (await pushSave.text()));
   const kidsRes = await authed(parent.accessToken, "/me/children");
   const kids = (await kidsRes.json()) as { studentId: string; fullName: string }[];
   if (!kids.some((k) => k.studentId === arun.studentId)) throw new Error("parent missing Arun");
@@ -100,7 +105,53 @@ async function main() {
     if (body.rows && body.rows.length > 0) throw new Error("school B read school A roster");
   }
 
-  console.log("PASS: branding, 8-A mark, parent Arun, deny 9-B, deny cross-tenant");
+  const from = `${today().slice(0, 8)}01`;
+  const history = await authed(
+    parent.accessToken,
+    `/attendance?studentId=${arun.studentId}&from=${from}&to=${today()}`,
+  );
+  if (!history.ok) throw new Error("parent date-range history failed " + (await history.text()));
+
+  const parentRangeMaria = await authed(
+    parent.accessToken,
+    `/attendance?studentId=${mariaId}&from=${from}&to=${today()}`,
+  );
+  if (parentRangeMaria.ok) throw new Error("parent of Arun must not read Maria via date range");
+
+  const exportDay = await authed(
+    teacher.accessToken,
+    `/attendance/export?sectionId=${eightA.id}&date=${today()}`,
+  );
+  if (!exportDay.ok) throw new Error("teacher day export failed " + (await exportDay.text()));
+  const dayCsv = await exportDay.text();
+  if (!dayCsv.includes("admission_number,full_name,status")) throw new Error("day CSV header missing");
+
+  const exportRange = await authed(
+    teacher.accessToken,
+    `/attendance/export?sectionId=${eightA.id}&from=${from}&to=${today()}`,
+  );
+  if (!exportRange.ok) throw new Error("teacher range export failed " + (await exportRange.text()));
+  const rangeCsv = await exportRange.text();
+  if (!rangeCsv.includes("admission_number,full_name,present,absent,late,holiday")) {
+    throw new Error("range CSV header missing");
+  }
+
+  const parentExport = await authed(
+    parent.accessToken,
+    `/attendance/export?sectionId=${eightA.id}&date=${today()}`,
+  );
+  if (parentExport.ok) throw new Error("parent must not export attendance");
+
+  const crossExport = await authed(
+    teacherB.accessToken,
+    `/attendance/export?sectionId=${eightA.id}&from=${from}&to=${today()}`,
+  );
+  if (crossExport.ok) {
+    const body = await crossExport.text();
+    if (body.includes("Arun")) throw new Error("school B exported school A attendance");
+  }
+
+  console.log("PASS: branding, 8-A mark, parent Arun, deny 9-B, deny cross-tenant, history range, CSV export");
 }
 
 main().catch((e) => {

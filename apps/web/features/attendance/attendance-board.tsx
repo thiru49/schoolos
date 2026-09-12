@@ -5,7 +5,6 @@ import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS, type AttendanceStatus } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
-import { getAccessToken } from "../../lib/session";
 import { useAppBranding } from "../../lib/branding-context";
 import { todayIso } from "../../lib/utils";
 import { Badge, statusBadge } from "../../components/ui/badge";
@@ -15,9 +14,20 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
+import { downloadAttendanceCsv } from "./download-csv";
 
 type Section = { id: string; label: string };
 type Row = { studentId: string; fullName: string; status: string | null };
+
+const TAMIL: Record<string, string> = {
+  attendance: "வருகை",
+  present: "வந்தார்",
+  absent: "வரவில்லை",
+  late: "தாமதம்",
+  holiday: "விடுமுறை",
+  submit: "வருகையை சமர்ப்பி",
+  saved: "வருகை சேமிக்கப்பட்டது",
+};
 
 export function AttendanceBoard() {
   const { acl } = useAppBranding();
@@ -27,7 +37,9 @@ export function AttendanceBoard() {
   const [sectionId, setSectionId] = useState("");
   const [date, setDate] = useState(todayIso());
   const [rows, setRows] = useState<Row[]>([]);
-  const [state, setState] = useState<"loading" | "loaded" | "saving" | "empty" | "error" | "denied" | "offline">("loading");
+  const [state, setState] = useState<
+    "loading" | "loaded" | "saving" | "empty" | "error" | "denied" | "offline" | "success"
+  >("loading");
   const [message, setMessage] = useState("");
 
   const summary = useMemo(() => {
@@ -93,26 +105,19 @@ export function AttendanceBoard() {
   }, [sectionId, date, loadRoster]);
 
   async function downloadCsv() {
-    const token = getAccessToken();
-    const path = api().attendanceApi.exportUrl(sectionId, date);
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}${path}`, {
-      headers: { Authorization: `Bearer ${token ?? ""}` },
-    });
-    if (!res.ok) {
+    try {
+      await downloadAttendanceCsv(
+        api().attendanceApi.exportUrl(sectionId, date),
+        `attendance-${date}.csv`,
+      );
+    } catch {
       toast.error("Export failed");
-      return;
     }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `attendance-${date}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   function setStatus(studentId: string, status: AttendanceStatus) {
     setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
+    if (state === "success") setState("loaded");
   }
 
   async function save() {
@@ -128,7 +133,8 @@ export function AttendanceBoard() {
     try {
       await api().attendanceApi.mark({ sectionId, date, marks });
       toast.success("Attendance saved");
-      setState("loaded");
+      setMessage(TAMIL.saved);
+      setState("success");
     } catch (e) {
       mapError(e);
     }
@@ -145,7 +151,10 @@ export function AttendanceBoard() {
   }
 
   return (
-    <div>
+    <div className="relative pb-24">
+      <p className="font-tamil mb-3 text-sm text-slate-500" lang="ta">
+        {TAMIL.attendance}
+      </p>
       <div className="flex flex-wrap gap-3">
         <select
           className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
@@ -174,17 +183,35 @@ export function AttendanceBoard() {
       <div className="mt-4 grid grid-cols-3 gap-3">
         <Card>
           <p className="text-xs text-slate-500">Present</p>
+          <p className="font-tamil text-xs text-slate-400" lang="ta">
+            {TAMIL.present}
+          </p>
           <p className="mt-1 font-display text-2xl text-success">{summary.present}</p>
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Absent</p>
+          <p className="font-tamil text-xs text-slate-400" lang="ta">
+            {TAMIL.absent}
+          </p>
           <p className="mt-1 font-display text-2xl text-danger">{summary.absent}</p>
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Late</p>
+          <p className="font-tamil text-xs text-slate-400" lang="ta">
+            {TAMIL.late}
+          </p>
           <p className="mt-1 font-display text-2xl text-warning">{summary.late}</p>
         </Card>
       </div>
+
+      {state === "success" ? (
+        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-success">
+          Attendance saved · Present {summary.present} · Absent {summary.absent} · Late {summary.late}
+          <p className="font-tamil mt-1" lang="ta">
+            {TAMIL.saved}
+          </p>
+        </div>
+      ) : null}
 
       {state === "loading" ? (
         <div className="mt-6 space-y-2">
@@ -200,7 +227,7 @@ export function AttendanceBoard() {
         </div>
       ) : null}
 
-      {(state === "loaded" || state === "saving") && rows.length > 0 ? (
+      {(state === "loaded" || state === "saving" || state === "success") && rows.length > 0 ? (
         <div className="mt-6 overflow-hidden rounded-2xl bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-primary text-white">
@@ -236,23 +263,24 @@ export function AttendanceBoard() {
               ))}
             </tbody>
           </table>
-          {canMark ? (
-            <div className="flex items-center justify-between border-t px-4 py-3">
-              <Badge variant="muted">{summary.total} students</Badge>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  disabled={state === "saving"}
-                  onClick={() => setRows((prev) => prev.map((r) => ({ ...r, status: "P" })))}
-                >
-                  Mark all Present
-                </Button>
-                <Button onClick={() => void save()} disabled={state === "saving"}>
-                  {state === "saving" ? "Saving…" : "Submit attendance"}
-                </Button>
-              </div>
-            </div>
-          ) : null}
+        </div>
+      ) : null}
+
+      {canMark && rows.length > 0 ? (
+        <div className="sticky bottom-0 z-10 mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+          <Badge variant="muted">{summary.total} students</Badge>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={state === "saving"}
+              onClick={() => setRows((prev) => prev.map((r) => ({ ...r, status: "P" })))}
+            >
+              Mark all Present
+            </Button>
+            <Button onClick={() => void save()} disabled={state === "saving"}>
+              {state === "saving" ? "Saving…" : "Submit attendance"}
+            </Button>
+          </div>
         </div>
       ) : null}
     </div>
