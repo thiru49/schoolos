@@ -5,16 +5,22 @@ import { parentCreateSchema, parentLinkSchema, parentUpdateSchema } from "@schoo
 import type { RequestAcl } from "../../common/types/request-acl";
 import { createSchoolUser, hashPassword } from "../../common/people/school-user";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ParentsPolicy } from "./parents.policy";
 
 @Injectable()
 export class ParentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly policy: ParentsPolicy,
+  ) {}
 
   list(acl: RequestAcl, q?: string) {
+    this.policy.assertRead(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const rows = await tx.parent.findMany({
         where: {
           schoolId: acl.schoolId,
+          ...(this.policy.isSelfOnly(acl) ? { userId: acl.userId } : {}),
           ...(q
             ? {
                 OR: [
@@ -39,11 +45,13 @@ export class ParentsService {
         include: { children: { include: { student: true } } },
       });
       if (!parent) throw new NotFoundException("Parent not found");
+      this.policy.assertSee(acl, parent);
       return toDto(parent);
     });
   }
 
   async create(acl: RequestAcl, body: unknown) {
+    this.policy.assertWrite(acl);
     const input = parentCreateSchema.parse(body);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const passwordHash = await hashPassword(input.password);
@@ -75,6 +83,7 @@ export class ParentsService {
   }
 
   update(acl: RequestAcl, id: string, body: unknown) {
+    this.policy.assertWrite(acl);
     const input = parentUpdateSchema.parse(body);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const parent = await tx.parent.findFirst({ where: { id, schoolId: acl.schoolId } });
@@ -92,6 +101,7 @@ export class ParentsService {
   }
 
   link(acl: RequestAcl, parentId: string, body: unknown) {
+    this.policy.assertWrite(acl);
     const input = parentLinkSchema.parse(body);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const parent = await tx.parent.findFirst({ where: { id: parentId, schoolId: acl.schoolId } });
@@ -106,6 +116,7 @@ export class ParentsService {
   }
 
   unlink(acl: RequestAcl, parentId: string, studentId: string) {
+    this.policy.assertWrite(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const parent = await tx.parent.findFirst({ where: { id: parentId, schoolId: acl.schoolId } });
       if (!parent) throw new NotFoundException("Parent not found");

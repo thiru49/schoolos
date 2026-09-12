@@ -4,16 +4,22 @@ import { teacherCreateSchema, teacherUpdateSchema } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
 import { createSchoolUser, hashPassword } from "../../common/people/school-user";
 import { PrismaService } from "../../prisma/prisma.service";
+import { TeachersPolicy } from "./teachers.policy";
 
 @Injectable()
 export class TeachersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly policy: TeachersPolicy,
+  ) {}
 
   list(acl: RequestAcl, q?: string) {
+    this.policy.assertRead(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const rows = await tx.teacher.findMany({
         where: {
           schoolId: acl.schoolId,
+          ...(this.policy.isSelfOnly(acl) ? { userId: acl.userId } : {}),
           ...(q
             ? {
                 OR: [
@@ -38,11 +44,13 @@ export class TeachersService {
         include: { user: { include: { userScopes: true } } },
       });
       if (!teacher) throw new NotFoundException("Teacher not found");
+      this.policy.assertSee(acl, teacher);
       return toDto(teacher);
     });
   }
 
   async create(acl: RequestAcl, body: unknown) {
+    this.policy.assertWrite(acl);
     const input = teacherCreateSchema.parse(body);
     if ((input.sectionId && !input.classId) || (input.classId && !input.sectionId)) {
       throw new BadRequestException("classId and sectionId must be provided together");
@@ -85,6 +93,7 @@ export class TeachersService {
   }
 
   update(acl: RequestAcl, id: string, body: unknown) {
+    this.policy.assertWrite(acl);
     const input = teacherUpdateSchema.parse(body);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const teacher = await tx.teacher.findFirst({ where: { id, schoolId: acl.schoolId } });
