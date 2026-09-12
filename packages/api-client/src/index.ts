@@ -287,8 +287,22 @@ export function createApiClient(options: {
           }[]
         >(`/homework?${q.toString()}`);
       },
+      get: (id: string) =>
+        request<{
+          id: string;
+          title: string;
+          body: string;
+          dueDate: string;
+          sectionId: string;
+          classId: string;
+          label: string;
+          completed?: boolean;
+          completionCount: number;
+        }>(`/homework/${id}`),
       create: (body: { classId: string; sectionId: string; title: string; body: string; dueDate: string }) =>
         request<unknown>("/homework", { method: "POST", body: JSON.stringify(body) }),
+      update: (id: string, body: { title?: string; body?: string; dueDate?: string }) =>
+        request<unknown>(`/homework/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       complete: (id: string) => request<unknown>(`/homework/${id}/complete`, { method: "POST" }),
     },
     students: {

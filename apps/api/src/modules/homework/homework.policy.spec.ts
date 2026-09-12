@@ -24,4 +24,32 @@ describe("HomeworkPolicy", () => {
   it("denies teacher creating for 9-B", () => {
     expect(() => policy.assertCreateSection(acl({}), "sec-9b", "c9")).toThrow(ForbiddenException);
   });
+
+  it("allows a parent to read a linked child's section", () => {
+    const parent = acl({
+      roles: ["parent"],
+      permissions: [PERMISSIONS.HOMEWORK_READ],
+      scopes: [{ type: "children", studentId: "arun" }],
+    });
+    expect(() => policy.assertReadSection(parent, "sec-8a", "c8", { childInSection: true })).not.toThrow();
+  });
+
+  it("denies a parent reading an unlinked section", () => {
+    const parent = acl({
+      roles: ["parent"],
+      permissions: [PERMISSIONS.HOMEWORK_READ],
+      scopes: [{ type: "children", studentId: "arun" }],
+    });
+    expect(() => policy.assertReadSection(parent, "sec-9b", "c9")).toThrow(ForbiddenException);
+  });
+
+  it("allows a student to complete only self", () => {
+    const student = acl({
+      roles: ["student"],
+      permissions: [PERMISSIONS.HOMEWORK_COMPLETE],
+      scopes: [{ type: "self", studentId: "arun" }],
+    });
+    expect(() => policy.assertComplete(student, "arun")).not.toThrow();
+    expect(() => policy.assertComplete(student, "maria")).toThrow(ForbiddenException);
+  });
 });

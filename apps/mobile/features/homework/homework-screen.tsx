@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
 import { AppInput } from "../../components/ui/AppInput";
-import { EmptyState, ErrorState } from "../../components/states/Feedback";
+import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 
 type Row = {
   id: string;
@@ -17,40 +18,73 @@ type Row = {
   label: string;
   completed?: boolean;
 };
+type Section = { id: string; classId: string; label: string };
 
 export function HomeworkScreen() {
   const { theme, acl, selectedChild } = useBranding();
   const router = useRouter();
-  const canCreate = acl?.permissions.includes(PERMISSIONS.HOMEWORK_CREATE);
-  const canComplete = acl?.permissions.includes(PERMISSIONS.HOMEWORK_COMPLETE);
-  const isParent = acl?.roles.includes("parent");
+  const canCreate = Boolean(acl?.permissions.includes(PERMISSIONS.HOMEWORK_CREATE));
+  const canComplete = Boolean(acl?.permissions.includes(PERMISSIONS.HOMEWORK_COMPLETE));
+  const isParent = Boolean(acl?.roles.includes("parent"));
   const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [sectionId, setSectionId] = useState<string | null>(null);
+  const [classId, setClassId] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [sectionId, setSectionId] = useState<string | null>(null);
-  const [classId, setClassId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Row | null>(null);
 
-  const load = useCallback(async () => {
+  function mapError(e: unknown) {
+    if (e instanceof ApiError && e.status === 403) {
+      setState("denied");
+      setMessage(e.message);
+      return;
+    }
+    if (e instanceof TypeError) {
+      setState("offline");
+      setMessage("You appear to be offline.");
+      return;
+    }
+    setState("error");
+    setMessage(e instanceof Error ? e.message : "Failed to load homework");
+  }
+
+  const load = useCallback(async (nextSection?: Section) => {
+    setState("loading");
+    setMessage("");
     try {
       const client = await api();
       if (canCreate) {
-        const sections = await client.academics.sections();
-        const first = sections[0];
-        if (first) {
-          setSectionId(first.id);
-          setClassId(first.classId);
-          setRows(await client.homework.list({ sectionId: first.id }));
-        } else setRows([]);
-      } else if (isParent && selectedChild) {
-        setRows(await client.homework.list({ studentId: selectedChild.studentId }));
-      } else {
-        setRows(await client.homework.list());
+        const list = await client.academics.sections();
+        setSections(list);
+        const first = list.find((s) => s.id === nextSection?.id) ?? list[0];
+        if (!first) {
+          setRows([]);
+          setState("empty");
+          setMessage("No classes in scope");
+          return;
+        }
+        setSectionId(first.id);
+        setClassId(first.classId);
+        const hw = await client.homework.list({ sectionId: first.id });
+        setRows(hw);
+        setState(hw.length === 0 ? "empty" : "loaded");
+        return;
       }
-      setError(null);
+      if (isParent && selectedChild) {
+        const hw = await client.homework.list({ studentId: selectedChild.studentId });
+        setRows(hw);
+        setState(hw.length === 0 ? "empty" : "loaded");
+        return;
+      }
+      const hw = await client.homework.list();
+      setRows(hw);
+      setState(hw.length === 0 ? "empty" : "loaded");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load homework");
+      mapError(e);
     }
   }, [canCreate, isParent, selectedChild]);
 
@@ -64,10 +98,18 @@ export function HomeworkScreen() {
       await (await api()).homework.create({ classId, sectionId, title, body, dueDate });
       setTitle("");
       setBody("");
-      await load();
+      await load(sections.find((s) => s.id === sectionId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Create failed");
+      mapError(e);
     }
+  }
+
+  if (state === "denied") {
+    return (
+      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
+        <DeniedState title="You cannot view this homework" detail={message} />
+      </View>
+    );
   }
 
   return (
@@ -78,8 +120,33 @@ export function HomeworkScreen() {
           Homework
         </AppText>
       </View>
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-      {canCreate ? (
+
+      {canCreate && sections.length > 1 ? (
+        <ScrollView horizontal className="mt-3" contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+          {sections.map((s) => (
+            <Pressable
+              key={s.id}
+              onPress={() => void load(s)}
+              className="rounded-full px-3 py-2"
+              style={{ backgroundColor: s.id === sectionId ? theme.colors.primary : "white" }}
+            >
+              <AppText variant="caption" color={s.id === sectionId ? "white" : theme.colors.ink}>
+                {s.label}
+              </AppText>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {state === "loading" ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+        </View>
+      ) : null}
+      {state === "offline" ? <OfflineState onRetry={() => void load()} /> : null}
+      {state === "error" ? <ErrorState message={message} onRetry={() => void load()} /> : null}
+
+      {canCreate && (state === "loaded" || state === "empty") ? (
         <View className="mt-4 px-4">
           <AppInput placeholder="Title" value={title} onChangeText={setTitle} />
           <View className="mt-2">
@@ -93,14 +160,17 @@ export function HomeworkScreen() {
           </View>
         </View>
       ) : null}
-      {rows.length === 0 && !error ? (
+
+      {state === "empty" ? (
         <View className="p-4">
-          <EmptyState title="No homework" detail="No assignments in scope." />
+          <EmptyState title="No homework" detail={message || "No assignments in scope."} />
         </View>
-      ) : (
+      ) : null}
+
+      {state === "loaded" ? (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           {rows.map((r) => (
-            <View key={r.id} className="mb-2 rounded-2xl bg-white p-4">
+            <Pressable key={r.id} className="mb-2 rounded-2xl bg-white p-4" onPress={() => setSelected(r)}>
               <AppText variant="label">{r.title}</AppText>
               <AppText variant="caption">
                 Due {r.dueDate} · {r.label}
@@ -126,10 +196,21 @@ export function HomeworkScreen() {
                   Not completed
                 </AppText>
               ) : null}
-            </View>
+            </Pressable>
           ))}
         </ScrollView>
-      )}
+      ) : null}
+
+      {selected ? (
+        <View className="absolute bottom-0 left-0 right-0 rounded-t-3xl bg-white p-4 shadow-lg">
+          <AppText variant="title">{selected.title}</AppText>
+          <AppText variant="caption">Due {selected.dueDate}</AppText>
+          <AppText style={{ marginTop: 8 }}>{selected.body}</AppText>
+          <View className="mt-3">
+            <AppButton label="Close" variant="secondary" onPress={() => setSelected(null)} />
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
