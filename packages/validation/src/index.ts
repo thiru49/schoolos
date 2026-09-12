@@ -83,5 +83,47 @@ export const brandingUpdateSchema = z.object({
   typography: z.record(z.unknown()).optional(),
 });
 
+export const studentCreateSchema = z.object({
+  admissionNumber: z.string().min(1),
+  fullName: z.string().min(1),
+  classId: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  password: z.string().min(8),
+});
+
+export const studentUpdateSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+});
+
+export const parentCreateSchema = z.object({
+  fullName: z.string().min(1),
+  contact: z.string().min(1),
+  password: z.string().min(8),
+  studentIds: z.array(z.string().uuid()).optional(),
+});
+
+export const parentUpdateSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  contact: z.string().min(1).optional(),
+});
+
+export const parentLinkSchema = z.object({
+  studentId: z.string().uuid(),
+});
+
+export const teacherCreateSchema = z.object({
+  employeeId: z.string().min(1),
+  fullName: z.string().min(1),
+  password: z.string().min(8),
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+});
+
+export const teacherUpdateSchema = z.object({
+  fullName: z.string().min(1).optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;

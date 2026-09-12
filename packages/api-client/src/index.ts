@@ -135,6 +135,65 @@ export function createApiClient(options: {
         }>(`/attendance?${q.toString()}`);
       },
     },
+    students: {
+      list: (query?: { sectionId?: string; q?: string }) => {
+        const q = new URLSearchParams();
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.q) q.set("q", query.q);
+        return request<
+          {
+            id: string;
+            admissionNumber: string;
+            fullName: string;
+            classId: string;
+            sectionId: string;
+            className: string;
+            sectionName: string;
+            status: string;
+            label: string;
+          }[]
+        >(`/students?${q.toString()}`);
+      },
+      create: (body: {
+        admissionNumber: string;
+        fullName: string;
+        classId: string;
+        sectionId: string;
+        password: string;
+      }) => request<unknown>("/students", { method: "POST", body: JSON.stringify(body) }),
+      update: (id: string, body: { fullName?: string; classId?: string; sectionId?: string }) =>
+        request<unknown>(`/students/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    },
+    parents: {
+      list: (q?: string) =>
+        request<
+          {
+            id: string;
+            fullName: string;
+            contact: string | null;
+            children: { studentId: string; fullName: string; admissionNumber: string }[];
+          }[]
+        >(`/parents${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+      create: (body: { fullName: string; contact: string; password: string; studentIds?: string[] }) =>
+        request<unknown>("/parents", { method: "POST", body: JSON.stringify(body) }),
+      link: (id: string, studentId: string) =>
+        request<unknown>(`/parents/${id}/children`, { method: "POST", body: JSON.stringify({ studentId }) }),
+      unlink: (id: string, studentId: string) =>
+        request<unknown>(`/parents/${id}/children/${studentId}`, { method: "DELETE" }),
+    },
+    teachers: {
+      list: (q?: string) =>
+        request<{ id: string; employeeId: string; fullName: string; sections: string[] }[]>(
+          `/teachers${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+        ),
+      create: (body: {
+        employeeId: string;
+        fullName: string;
+        password: string;
+        classId?: string;
+        sectionId?: string;
+      }) => request<unknown>("/teachers", { method: "POST", body: JSON.stringify(body) }),
+    },
     notifications: {
       list: () =>
         request<{ id: string; kind: string; title: string; body: string; read: boolean; createdAt: string }[]>(
