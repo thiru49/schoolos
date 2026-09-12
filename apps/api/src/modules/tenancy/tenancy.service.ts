@@ -21,7 +21,7 @@ export class TenancyService {
         theme: unknown;
         typography: unknown;
       }[]
-    >`SELECT * FROM get_school_by_slug(${slug})`;
+    >`SELECT * FROM get_public_branding(${slug})`;
     const row = rows[0];
     if (!row) throw new NotFoundException("School unavailable");
     return {

@@ -1,14 +1,7 @@
--- Applied from seed as well. Tenant isolation via app.school_id.
+-- Canonical copy of public branding + RLS notes.
+-- Applied by: database/prisma/migrations/20260912180000_tenant_integrity_and_rls/migration.sql
+-- Do not enable RLS from seed.
 
-CREATE OR REPLACE FUNCTION get_school_by_slug(p_slug text)
-RETURNS SETOF schools
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT * FROM schools WHERE slug = p_slug;
-$$;
-
-REVOKE ALL ON FUNCTION get_school_by_slug(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION get_school_by_slug(text) TO schoolos;
-GRANT EXECUTE ON FUNCTION get_school_by_slug(text) TO PUBLIC;
+-- get_public_branding(p_slug) returns only public branding columns (not SETOF schools).
+-- EXECUTE is granted to the app role `schoolos`, not PUBLIC.
+-- Function owner is schoolos_rls_bypass (BYPASSRLS) so FORCE RLS on schools does not hide branding.
