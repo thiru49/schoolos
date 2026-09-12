@@ -39,6 +39,8 @@ model School {
   parentStudents ParentStudent[]
   refreshTokens  RefreshToken[]
   inbox          InboxNotification[]
+  homeworks      Homework[]
+  homeworkCompletions HomeworkCompletion[]
 
   @@map("schools")
 }
@@ -64,6 +66,7 @@ model User {
   markedAttendance Attendance[]   @relation("MarkedBy")
   auditLogs        AuditLog[]
   inbox            InboxNotification[]
+  homeworks        Homework[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, identifier])
@@ -172,6 +175,7 @@ model Class {
   academicYear AcademicYear @relation(fields: [academicYearId, schoolId], references: [id, schoolId], onDelete: Cascade)
   sections     Section[]
   students     Student[]
+  homeworks    Homework[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -188,6 +192,7 @@ model Section {
   class      Class        @relation(fields: [classId, schoolId], references: [id, schoolId], onDelete: Cascade)
   students   Student[]
   attendance Attendance[]
+  homeworks  Homework[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -210,6 +215,7 @@ model Student {
   section    Section         @relation(fields: [sectionId, schoolId], references: [id, schoolId])
   parents    ParentStudent[]
   attendance Attendance[]
+  homeworkCompletions HomeworkCompletion[]
 
   @@unique([id, schoolId])
   @@unique([userId, schoolId])
@@ -335,4 +341,42 @@ model InboxNotification {
   @@unique([id, schoolId])
   @@index([schoolId, userId, createdAt])
   @@map("notifications")
+}
+
+model Homework {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @map("school_id") @db.Uuid
+  classId        String   @map("class_id") @db.Uuid
+  sectionId      String   @map("section_id") @db.Uuid
+  title          String
+  body           String
+  dueDate        DateTime @map("due_date") @db.Date
+  createdByUserId String  @map("created_by_user_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  school     School                 @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  class      Class                  @relation(fields: [classId, schoolId], references: [id, schoolId])
+  section    Section                @relation(fields: [sectionId, schoolId], references: [id, schoolId])
+  createdBy  User                   @relation(fields: [createdByUserId, schoolId], references: [id, schoolId])
+  completions HomeworkCompletion[]
+
+  @@unique([id, schoolId])
+  @@index([schoolId, sectionId, dueDate])
+  @@map("homeworks")
+}
+
+model HomeworkCompletion {
+  schoolId    String   @map("school_id") @db.Uuid
+  homeworkId  String   @map("homework_id") @db.Uuid
+  studentId   String   @map("student_id") @db.Uuid
+  completedAt DateTime @default(now()) @map("completed_at")
+
+  school   School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  homework Homework @relation(fields: [homeworkId, schoolId], references: [id, schoolId], onDelete: Cascade)
+  student  Student  @relation(fields: [studentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@id([homeworkId, studentId])
+  @@index([schoolId])
+  @@map("homework_completions")
 }

@@ -5,6 +5,7 @@ import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BrandingModule } from "./modules/branding/branding.module";
 import { FilesModule } from "./modules/files/files.module";
+import { HomeworkModule } from "./modules/homework/homework.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { ParentsModule } from "./modules/parents/parents.module";
 import { StudentsModule } from "./modules/students/students.module";
@@ -30,6 +31,7 @@ import { JwtOptionalMiddleware } from "./common/middleware/jwt-optional.middlewa
     ParentsModule,
     TeachersModule,
     AttendanceModule,
+    HomeworkModule,
     FilesModule,
     NotificationsModule,
   ],
