@@ -6,6 +6,7 @@ import {
   Calendar,
   CalendarCheck,
   BookOpen,
+  ClipboardList,
   FileBarChart,
   GraduationCap,
   LayoutDashboard,
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/attendance", label: "Attendance", icon: CalendarCheck, permission: PERMISSIONS.ATTENDANCE_READ },
   { href: "/homework", label: "Homework", icon: BookOpen, permission: PERMISSIONS.HOMEWORK_READ },
   { href: "/timetable", label: "Timetable", icon: Calendar, permission: PERMISSIONS.TIMETABLE_READ },
+  { href: "/exams", label: "Exams & Marks", icon: ClipboardList, permission: PERMISSIONS.EXAMS_READ },
   { href: "/reports/attendance", label: "Reports", icon: FileBarChart, permission: PERMISSIONS.REPORTS_ATTENDANCE },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
 ];

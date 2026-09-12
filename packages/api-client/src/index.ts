@@ -175,6 +175,47 @@ export function createApiClient(options: {
         request<{ published: number }>("/timetable/publish", { method: "POST", body: JSON.stringify({ sectionId }) }),
       remove: (id: string) => request<{ deleted: boolean }>(`/timetable/${id}`, { method: "DELETE" }),
     },
+    exams: {
+      list: (query?: { sectionId?: string; studentId?: string }) => {
+        const q = new URLSearchParams();
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        return request<
+          {
+            id: string;
+            name: string;
+            examDate: string;
+            maxScore: number;
+            subjectName: string;
+            label: string;
+            sectionId: string;
+            classId: string;
+            subjectId: string;
+          }[]
+        >(`/exams?${q.toString()}`);
+      },
+      create: (body: {
+        classId: string;
+        sectionId: string;
+        subjectId: string;
+        name: string;
+        examDate: string;
+        maxScore: number;
+      }) => request<unknown>("/exams", { method: "POST", body: JSON.stringify(body) }),
+      queue: () =>
+        request<{ id: string; name: string; subjectName: string; label: string; submittedCount: number }[]>(
+          "/exams/queue",
+        ),
+      marks: (examId: string, studentId?: string) =>
+        request<{
+          exam: { id: string; name: string; maxScore: number; subjectName: string; label: string };
+          rows: { studentId: string; fullName: string; admissionNumber: string; score: number | null; status: string | null }[];
+        }>(`/exams/${examId}/marks${studentId ? `?studentId=${studentId}` : ""}`),
+      draft: (examId: string, marks: { studentId: string; score: number }[]) =>
+        request<unknown>(`/exams/${examId}/marks`, { method: "PUT", body: JSON.stringify({ marks }) }),
+      submit: (examId: string) => request<{ submitted: number }>(`/exams/${examId}/marks/submit`, { method: "POST" }),
+      publish: (examId: string) => request<{ published: number }>(`/exams/${examId}/marks/publish`, { method: "POST" }),
+    },
     homework: {
       list: (query?: { sectionId?: string; studentId?: string }) => {
         const q = new URLSearchParams();
