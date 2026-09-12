@@ -60,6 +60,18 @@ export class AttendanceRepository {
     });
   }
 
+  listRange(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    sectionId: string,
+    from: Date,
+    to: Date,
+  ) {
+    return tx.attendance.findMany({
+      where: { schoolId, sectionId, date: { gte: from, lte: to } },
+    });
+  }
+
   upsertMarks(
     tx: Prisma.TransactionClient,
     schoolId: string,

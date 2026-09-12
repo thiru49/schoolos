@@ -102,6 +102,24 @@ export function createApiClient(options: {
           method: "PUT",
           body: JSON.stringify(body),
         }),
+      report: (sectionId: string, from: string, to: string) =>
+        request<{
+          sectionId: string;
+          label: string;
+          from: string;
+          to: string;
+          rows: {
+            studentId: string;
+            fullName: string;
+            admissionNumber: string;
+            P: number;
+            A: number;
+            L: number;
+            H: number;
+          }[];
+        }>(`/attendance/report?sectionId=${sectionId}&from=${from}&to=${to}`),
+      exportUrl: (sectionId: string, date: string) =>
+        `/attendance/export?sectionId=${sectionId}&date=${date}`,
       list: (query: { studentId?: string; sectionId?: string; date?: string }) => {
         const q = new URLSearchParams();
         if (query.studentId) q.set("studentId", query.studentId);
@@ -116,6 +134,15 @@ export function createApiClient(options: {
           }[];
         }>(`/attendance?${q.toString()}`);
       },
+    },
+    notifications: {
+      list: () =>
+        request<{ id: string; kind: string; title: string; body: string; read: boolean; createdAt: string }[]>(
+          "/notifications",
+        ),
+      markRead: (id: string) => request<{ id: string; read: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
+      savePushToken: (token: string) =>
+        request<{ saved: boolean }>("/me/push-token", { method: "POST", body: JSON.stringify({ token }) }),
     },
     setTokens,
   };

@@ -38,6 +38,7 @@ model School {
   auditLogs      AuditLog[]
   parentStudents ParentStudent[]
   refreshTokens  RefreshToken[]
+  inbox          InboxNotification[]
 
   @@map("schools")
 }
@@ -49,6 +50,7 @@ model User {
   passwordHash String   @map("password_hash")
   displayName  String   @map("display_name")
   isActive     Boolean  @default(true) @map("is_active")
+  pushToken    String?  @map("push_token")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -61,6 +63,7 @@ model User {
   refreshTokens    RefreshToken[]
   markedAttendance Attendance[]   @relation("MarkedBy")
   auditLogs        AuditLog[]
+  inbox            InboxNotification[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, identifier])
@@ -313,4 +316,23 @@ model RefreshToken {
 
   @@index([tokenHash])
   @@map("refresh_tokens")
+}
+
+model InboxNotification {
+  id        String    @id @default(uuid()) @db.Uuid
+  schoolId  String    @map("school_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  studentId String?   @map("student_id") @db.Uuid
+  kind      String
+  title     String
+  body      String
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@unique([id, schoolId])
+  @@index([schoolId, userId, createdAt])
+  @@map("notifications")
 }
