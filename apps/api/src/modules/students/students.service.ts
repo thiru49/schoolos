@@ -1,8 +1,15 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { PERMISSIONS, ROLE_CODES } from "@schoolos/permissions";
 import { studentCreateSchema, studentUpdateSchema } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
-import { createSchoolUser, hashPassword, hasSchoolScope, sectionScopeIds } from "../../common/people/school-user";
+import {
+  classScopeIds,
+  createSchoolUser,
+  hashPassword,
+  hasSchoolScope,
+  sectionScopeIds,
+} from "../../common/people/school-user";
 import { PrismaService } from "../../prisma/prisma.service";
 import { StudentsPolicy } from "./students.policy";
 
@@ -16,24 +23,46 @@ export class StudentsService {
   list(acl: RequestAcl, sectionId?: string, q?: string) {
     this.policy.assertRead(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
-      const where: {
-        schoolId: string;
-        sectionId?: string | { in: string[] };
-        OR?: { fullName?: { contains: string; mode: "insensitive" }; admissionNumber?: { contains: string; mode: "insensitive" } }[];
-      } = { schoolId: acl.schoolId };
+      const where: Prisma.StudentWhereInput = { schoolId: acl.schoolId };
+
       if (sectionId) {
-        if (!this.policy.canSeeSection(acl, sectionId)) throw new NotFoundException("Section not found");
+        const section = await tx.section.findFirst({
+          where: { id: sectionId, schoolId: acl.schoolId },
+        });
+        if (!section) throw new NotFoundException("Section not found");
+        const linked = this.policy.visibleStudentIds(acl);
+        const canSection = this.policy.canSeeSection(acl, section.id, section.classId);
+        if (!hasSchoolScope(acl) && !canSection && linked.size === 0) {
+          throw new NotFoundException("Section not found");
+        }
         where.sectionId = sectionId;
+        if (!hasSchoolScope(acl) && !canSection) {
+          where.id = { in: [...linked] };
+        }
       } else if (!hasSchoolScope(acl)) {
-        const ids = [...sectionScopeIds(acl)];
-        if (ids.length === 0) return [];
-        where.sectionId = { in: ids };
+        const sectionIds = [...sectionScopeIds(acl)];
+        const classIds = [...classScopeIds(acl)];
+        const studentIds = [...this.policy.visibleStudentIds(acl)];
+        if (sectionIds.length === 0 && classIds.length === 0 && studentIds.length === 0) return [];
+        const parts: Prisma.StudentWhereInput[] = [];
+        if (sectionIds.length) parts.push({ sectionId: { in: sectionIds } });
+        if (classIds.length) parts.push({ classId: { in: classIds } });
+        if (studentIds.length) parts.push({ id: { in: studentIds } });
+        where.OR = parts;
       }
       if (q) {
-        where.OR = [
-          { fullName: { contains: q, mode: "insensitive" } },
-          { admissionNumber: { contains: q, mode: "insensitive" } },
-        ];
+        const search: Prisma.StudentWhereInput = {
+          OR: [
+            { fullName: { contains: q, mode: "insensitive" } },
+            { admissionNumber: { contains: q, mode: "insensitive" } },
+          ],
+        };
+        if (where.OR) {
+          where.AND = [{ OR: where.OR }, search];
+          delete where.OR;
+        } else {
+          Object.assign(where, search);
+        }
       }
       const rows = await tx.student.findMany({
         where,
@@ -52,7 +81,11 @@ export class StudentsService {
         include: { class: true, section: true },
       });
       if (!student) throw new NotFoundException("Student not found");
-      this.policy.assertSeeStudent(acl, student);
+      this.policy.assertSeeStudent(acl, {
+        id: student.id,
+        sectionId: student.sectionId,
+        classId: student.classId,
+      });
       return toDto(student);
     });
   }

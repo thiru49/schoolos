@@ -1,7 +1,13 @@
 import { ForbiddenException } from "@nestjs/common";
 import { PERMISSIONS } from "@schoolos/permissions";
 import type { RequestAcl } from "../../common/types/request-acl";
-import { hasSchoolScope, sectionScopeIds } from "../../common/people/school-user";
+import {
+  childStudentIds,
+  classScopeIds,
+  hasSchoolScope,
+  sectionScopeIds,
+  selfStudentIds,
+} from "../../common/people/school-user";
 
 export class StudentsPolicy {
   assertRead(acl: RequestAcl) {
@@ -19,17 +25,22 @@ export class StudentsPolicy {
     }
   }
 
-  canSeeSection(acl: RequestAcl, sectionId: string) {
+  canSeeSection(acl: RequestAcl, sectionId: string, classId?: string) {
     if (hasSchoolScope(acl)) return true;
-    return sectionScopeIds(acl).has(sectionId);
+    if (sectionScopeIds(acl).has(sectionId)) return true;
+    if (classId && classScopeIds(acl).has(classId)) return true;
+    return false;
   }
 
-  assertSeeStudent(acl: RequestAcl, student: { id: string; sectionId: string }) {
+  visibleStudentIds(acl: RequestAcl) {
+    return new Set([...childStudentIds(acl), ...selfStudentIds(acl)]);
+  }
+
+  assertSeeStudent(acl: RequestAcl, student: { id: string; sectionId: string; classId: string }) {
     this.assertRead(acl);
     if (hasSchoolScope(acl)) return;
-    if (sectionScopeIds(acl).has(student.sectionId)) return;
-    if (acl.scopes.some((s) => s.type === "self" && s.studentId === student.id)) return;
-    if (acl.scopes.some((s) => s.type === "children" && s.studentId === student.id)) return;
+    if (this.canSeeSection(acl, student.sectionId, student.classId)) return;
+    if (this.visibleStudentIds(acl).has(student.id)) return;
     throw new ForbiddenException("You cannot view this student");
   }
 }

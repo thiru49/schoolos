@@ -18,11 +18,35 @@ describe("StudentsPolicy", () => {
   const policy = new StudentsPolicy();
 
   it("allows teacher to read 8-A student", () => {
-    expect(() => policy.assertSeeStudent(acl({}), { id: "st1", sectionId: "sec-8a" })).not.toThrow();
+    expect(() =>
+      policy.assertSeeStudent(acl({}), { id: "st1", sectionId: "sec-8a", classId: "c8" }),
+    ).not.toThrow();
   });
 
   it("denies teacher reading 9-B student", () => {
-    expect(() => policy.assertSeeStudent(acl({}), { id: "st2", sectionId: "sec-9b" })).toThrow(ForbiddenException);
+    expect(() =>
+      policy.assertSeeStudent(acl({}), { id: "st2", sectionId: "sec-9b", classId: "c9" }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("allows a parent to read a linked child", () => {
+    const parent = acl({
+      roles: ["parent"],
+      scopes: [{ type: "children", studentId: "arun" }],
+    });
+    expect(() =>
+      policy.assertSeeStudent(parent, { id: "arun", sectionId: "sec-8a", classId: "c8" }),
+    ).not.toThrow();
+  });
+
+  it("denies a parent reading an unlinked student", () => {
+    const parent = acl({
+      roles: ["parent"],
+      scopes: [{ type: "children", studentId: "arun" }],
+    });
+    expect(() =>
+      policy.assertSeeStudent(parent, { id: "maria", sectionId: "sec-9b", classId: "c9" }),
+    ).toThrow(ForbiddenException);
   });
 
   it("denies teacher write", () => {

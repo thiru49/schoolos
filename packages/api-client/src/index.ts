@@ -310,6 +310,18 @@ export function createApiClient(options: {
           }[]
         >(`/students?${q.toString()}`);
       },
+      get: (id: string) =>
+        request<{
+          id: string;
+          admissionNumber: string;
+          fullName: string;
+          classId: string;
+          sectionId: string;
+          className: string;
+          sectionName: string;
+          status: string;
+          label: string;
+        }>(`/students/${id}`),
       create: (body: {
         admissionNumber: string;
         fullName: string;
@@ -330,8 +342,17 @@ export function createApiClient(options: {
             children: { studentId: string; fullName: string; admissionNumber: string }[];
           }[]
         >(`/parents${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+      get: (id: string) =>
+        request<{
+          id: string;
+          fullName: string;
+          contact: string | null;
+          children: { studentId: string; fullName: string; admissionNumber: string }[];
+        }>(`/parents/${id}`),
       create: (body: { fullName: string; contact: string; password: string; studentIds?: string[] }) =>
         request<unknown>("/parents", { method: "POST", body: JSON.stringify(body) }),
+      update: (id: string, body: { fullName?: string; contact?: string }) =>
+        request<unknown>(`/parents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       link: (id: string, studentId: string) =>
         request<unknown>(`/parents/${id}/children`, { method: "POST", body: JSON.stringify({ studentId }) }),
       unlink: (id: string, studentId: string) =>
@@ -342,6 +363,8 @@ export function createApiClient(options: {
         request<{ id: string; employeeId: string; fullName: string; sections: string[] }[]>(
           `/teachers${q ? `?q=${encodeURIComponent(q)}` : ""}`,
         ),
+      get: (id: string) =>
+        request<{ id: string; employeeId: string; fullName: string; sections: string[] }>(`/teachers/${id}`),
       create: (body: {
         employeeId: string;
         fullName: string;
@@ -349,6 +372,8 @@ export function createApiClient(options: {
         classId?: string;
         sectionId?: string;
       }) => request<unknown>("/teachers", { method: "POST", body: JSON.stringify(body) }),
+      update: (id: string, body: { fullName?: string }) =>
+        request<unknown>(`/teachers/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     },
     notifications: {
       list: () =>

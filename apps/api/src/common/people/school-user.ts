@@ -63,3 +63,17 @@ export function hasSchoolScope(acl: { scopes: { type: string }[] }) {
 export function sectionScopeIds(acl: { scopes: { type: string; sectionId?: string }[] }) {
   return new Set(acl.scopes.filter((s) => s.type === "section" && s.sectionId).map((s) => s.sectionId!));
 }
+
+export function classScopeIds(acl: { scopes: { type: string; classId?: string }[] }) {
+  return new Set(acl.scopes.filter((s) => s.type === "class" && s.classId).map((s) => s.classId!));
+}
+
+export function childStudentIds(acl: { scopes: { type: string; studentId?: string }[] }) {
+  return new Set(
+    acl.scopes.filter((s) => s.type === "children" && s.studentId).map((s) => s.studentId!),
+  );
+}
+
+export function selfStudentIds(acl: { scopes: { type: string; studentId?: string }[] }) {
+  return new Set(acl.scopes.filter((s) => s.type === "self" && s.studentId).map((s) => s.studentId!));
+}
