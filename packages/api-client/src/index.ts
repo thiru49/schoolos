@@ -175,6 +175,48 @@ export function createApiClient(options: {
         request<{ published: number }>("/timetable/publish", { method: "POST", body: JSON.stringify({ sectionId }) }),
       remove: (id: string) => request<{ deleted: boolean }>(`/timetable/${id}`, { method: "DELETE" }),
     },
+    fees: {
+      heads: () => request<{ id: string; name: string; amount: number }[]>("/fee-heads"),
+      createHead: (body: { name: string; amount: number }) =>
+        request<{ id: string; name: string; amount: number }>("/fee-heads", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      list: (studentId?: string) =>
+        request<
+          {
+            id: string;
+            amount: number;
+            method: string;
+            feeHeadName: string;
+            studentName: string;
+            admissionNumber: string;
+            receiptNumber: string | null;
+            receiptId: string | null;
+            createdAt: string;
+          }[]
+        >(`/fees${studentId ? `?studentId=${studentId}` : ""}`),
+      previewNumber: () => request<{ preview: string }>("/fees/preview-number"),
+      record: (body: {
+        studentId: string;
+        feeHeadId: string;
+        amount: number;
+        method: "cash" | "upi" | "bank";
+        note?: string;
+      }) => request<{ receiptNumber: string }>("/fees", { method: "POST", body: JSON.stringify(body) }),
+      receipt: (id: string) =>
+        request<{
+          id: string;
+          number: string;
+          amount: number;
+          method: string;
+          feeHead: string;
+          studentName: string;
+          admissionNumber: string;
+          createdAt: string;
+          note: string | null;
+        }>(`/receipts/${id}`),
+    },
     exams: {
       list: (query?: { sectionId?: string; studentId?: string }) => {
         const q = new URLSearchParams();

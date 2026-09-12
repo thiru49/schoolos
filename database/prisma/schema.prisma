@@ -45,6 +45,9 @@ model School {
   timetablePeriods TimetablePeriod[]
   exams            Exam[]
   marks            Mark[]
+  feeHeads         FeeHead[]
+  feePayments      FeePayment[]
+  receipts         Receipt[]
 
   @@map("schools")
 }
@@ -71,6 +74,7 @@ model User {
   auditLogs        AuditLog[]
   inbox            InboxNotification[]
   homeworks        Homework[]
+  feePayments      FeePayment[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, identifier])
@@ -225,6 +229,7 @@ model Student {
   attendance Attendance[]
   homeworkCompletions HomeworkCompletion[]
   marks               Mark[]
+  feePayments         FeePayment[]
 
   @@unique([id, schoolId])
   @@unique([userId, schoolId])
@@ -468,4 +473,57 @@ model Mark {
   @@unique([schoolId, examId, studentId])
   @@index([schoolId, examId, status])
   @@map("marks")
+}
+
+model FeeHead {
+  id       String @id @default(uuid()) @db.Uuid
+  schoolId String @map("school_id") @db.Uuid
+  name     String
+  amount   Int
+
+  school   School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  payments FeePayment[]
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, name])
+  @@map("fee_heads")
+}
+
+model FeePayment {
+  id               String   @id @default(uuid()) @db.Uuid
+  schoolId         String   @map("school_id") @db.Uuid
+  studentId        String   @map("student_id") @db.Uuid
+  feeHeadId        String   @map("fee_head_id") @db.Uuid
+  amount           Int
+  method           String
+  note             String?
+  recordedByUserId String   @map("recorded_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  school     School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId, schoolId], references: [id, schoolId])
+  feeHead    FeeHead   @relation(fields: [feeHeadId, schoolId], references: [id, schoolId])
+  recordedBy User      @relation(fields: [recordedByUserId, schoolId], references: [id, schoolId])
+  receipt    Receipt?
+
+  @@unique([id, schoolId])
+  @@index([schoolId, studentId])
+  @@map("fee_payments")
+}
+
+model Receipt {
+  id        String @id @default(uuid()) @db.Uuid
+  schoolId  String @map("school_id") @db.Uuid
+  paymentId String @unique @map("payment_id") @db.Uuid
+  seq       Int
+  number    String
+
+  school  School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  payment FeePayment @relation(fields: [paymentId, schoolId], references: [id, schoolId], onDelete: Cascade)
+
+  @@unique([id, schoolId])
+  @@unique([paymentId, schoolId])
+  @@unique([schoolId, seq])
+  @@unique([schoolId, number])
+  @@map("receipts")
 }
