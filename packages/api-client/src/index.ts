@@ -6,6 +6,9 @@ import type {
   PutAttendanceRequest,
   TokenPair,
 } from "@schoolos/types";
+import type { NoticeTargetRole } from "@schoolos/validation";
+
+export type { NoticeTargetRole };
 
 export class ApiError extends Error {
   constructor(
@@ -438,6 +441,151 @@ export function createApiClient(options: {
       markRead: (id: string) => request<{ id: string; read: boolean }>(`/notifications/${id}/read`, { method: "PATCH" }),
       savePushToken: (token: string) =>
         request<{ saved: boolean }>("/me/push-token", { method: "POST", body: JSON.stringify({ token }) }),
+    },
+    notices: {
+      list: () =>
+        request<
+          {
+            id: string;
+            title: string;
+            body: string;
+            targetRole: NoticeTargetRole;
+            published: boolean;
+            publishedAt: string | null;
+            authorId: string;
+            authorName: string;
+            createdAt: string;
+          }[]
+        >("/notices"),
+      create: (body: {
+        title: string;
+        body: string;
+        targetRole?: NoticeTargetRole;
+        published?: boolean;
+      }) =>
+        request<{
+          id: string;
+          title: string;
+          body: string;
+          targetRole: NoticeTargetRole;
+          published: boolean;
+          publishedAt: string | null;
+          authorId: string;
+          authorName: string;
+          createdAt: string;
+        }>("/notices", { method: "POST", body: JSON.stringify(body) }),
+      update: (
+        id: string,
+        body: {
+          title?: string;
+          body?: string;
+          targetRole?: NoticeTargetRole;
+          published?: boolean;
+        },
+      ) =>
+        request<{
+          id: string;
+          title: string;
+          body: string;
+          targetRole: NoticeTargetRole;
+          published: boolean;
+          publishedAt: string | null;
+          authorId: string;
+          authorName: string;
+          createdAt: string;
+        }>(`/notices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      remove: (id: string) =>
+        request<{ deleted: boolean }>(`/notices/${id}`, { method: "DELETE" }),
+    },
+    events: {
+      list: (query?: { from?: string; to?: string }) => {
+        const q = new URLSearchParams();
+        if (query?.from) q.set("from", query.from);
+        if (query?.to) q.set("to", query.to);
+        const qs = q.toString();
+        return request<
+          {
+            id: string;
+            title: string;
+            description: string | null;
+            startDate: string;
+            endDate: string;
+            location: string | null;
+            published: boolean;
+            createdAt: string;
+          }[]
+        >(`/events${qs ? `?${qs}` : ""}`);
+      },
+      create: (body: {
+        title: string;
+        description?: string | null;
+        startDate: string;
+        endDate: string;
+        location?: string | null;
+        published?: boolean;
+      }) =>
+        request<{
+          id: string;
+          title: string;
+          description: string | null;
+          startDate: string;
+          endDate: string;
+          location: string | null;
+          published: boolean;
+          createdAt: string;
+        }>("/events", { method: "POST", body: JSON.stringify(body) }),
+      update: (
+        id: string,
+        body: {
+          title?: string;
+          description?: string | null;
+          startDate?: string;
+          endDate?: string;
+          location?: string | null;
+          published?: boolean;
+        },
+      ) =>
+        request<{
+          id: string;
+          title: string;
+          description: string | null;
+          startDate: string;
+          endDate: string;
+          location: string | null;
+          published: boolean;
+          createdAt: string;
+        }>(`/events/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+      remove: (id: string) =>
+        request<{ deleted: boolean }>(`/events/${id}`, { method: "DELETE" }),
+    },
+    holidays: {
+      list: (academicYearId?: string) => {
+        const q = new URLSearchParams();
+        if (academicYearId) q.set("academicYearId", academicYearId);
+        const qs = q.toString();
+        return request<
+          {
+            id: string;
+            name: string;
+            date: string;
+            academicYearId: string | null;
+            createdAt: string;
+          }[]
+        >(`/holidays${qs ? `?${qs}` : ""}`);
+      },
+      create: (body: { name: string; date: string; academicYearId?: string }) =>
+        request<{
+          id: string;
+          name: string;
+          date: string;
+          academicYearId: string | null;
+          createdAt: string;
+        }>("/holidays", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      remove: (id: string) =>
+        request<{ deleted: boolean }>(`/holidays/${id}`, { method: "DELETE" }),
     },
     setTokens,
   };

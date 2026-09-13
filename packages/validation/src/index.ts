@@ -198,5 +198,106 @@ export const homeworkUpdateSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+export const NOTICE_TARGET_ROLES = ["all", "student", "parent", "teacher"] as const;
+export type NoticeTargetRole = (typeof NOTICE_TARGET_ROLES)[number] | null;
+
+export const noticeCreateSchema = z.object({
+  title: z.string().trim().min(1),
+  body: z.string().trim().min(1),
+  targetRole: z.enum(NOTICE_TARGET_ROLES).nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const noticeUpdateSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  body: z.string().trim().min(1).optional(),
+  targetRole: z.enum(NOTICE_TARGET_ROLES).nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const eventCreateSchema = z
+  .object({
+    title: z.string().trim().min(1),
+    description: z.string().trim().nullable().optional(),
+    startDate: z.string().trim().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid startDate format",
+    }),
+    endDate: z.string().trim().refine((val) => !isNaN(Date.parse(val)), {
+      message: "Invalid endDate format",
+    }),
+    location: z.string().trim().nullable().optional(),
+    published: z.boolean().optional(),
+  })
+  .refine((data) => new Date(data.startDate) <= new Date(data.endDate), {
+    message: "startDate must be before or equal to endDate",
+    path: ["endDate"],
+  });
+
+export const eventUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).optional(),
+    description: z.string().trim().nullable().optional(),
+    startDate: z
+      .string()
+      .trim()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid startDate format",
+      })
+      .optional(),
+    endDate: z
+      .string()
+      .trim()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid endDate format",
+      })
+      .optional(),
+    location: z.string().trim().nullable().optional(),
+    published: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      !data.startDate || !data.endDate || new Date(data.startDate) <= new Date(data.endDate),
+    {
+      message: "startDate must be before or equal to endDate",
+      path: ["endDate"],
+    },
+  );
+
+export const eventQuerySchema = z
+  .object({
+    from: z
+      .string()
+      .trim()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid 'from' date format",
+      })
+      .optional(),
+    to: z
+      .string()
+      .trim()
+      .refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid 'to' date format",
+      })
+      .optional(),
+  })
+  .refine((data) => !data.from || !data.to || new Date(data.from) <= new Date(data.to), {
+    message: "'from' date must be before or equal to 'to' date",
+    path: ["to"],
+  });
+
+export const holidayCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  academicYearId: z.string().uuid().optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
+export type NoticeCreateInput = z.infer<typeof noticeCreateSchema>;
+export type NoticeUpdateInput = z.infer<typeof noticeUpdateSchema>;
+export type EventCreateInput = z.infer<typeof eventCreateSchema>;
+export type EventUpdateInput = z.infer<typeof eventUpdateSchema>;
+export type EventQueryInput = z.infer<typeof eventQuerySchema>;
+export type HolidayCreateInput = z.infer<typeof holidayCreateSchema>;
+
+

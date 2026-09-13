@@ -48,6 +48,9 @@ model School {
   feeHeads         FeeHead[]
   feePayments      FeePayment[]
   receipts         Receipt[]
+  notices          Notice[]
+  events           Event[]
+  holidays         Holiday[]
 
   @@map("schools")
 }
@@ -75,6 +78,7 @@ model User {
   inbox            InboxNotification[]
   homeworks        Homework[]
   feePayments      FeePayment[]
+  notices          Notice[]
 
   @@unique([id, schoolId])
   @@unique([schoolId, identifier])
@@ -165,8 +169,9 @@ model AcademicYear {
   name     String
   isActive Boolean @default(true) @map("is_active")
 
-  school  School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  classes Class[]
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  classes  Class[]
+  holidays Holiday[]
 
   @@unique([id, schoolId])
   @@index([schoolId])
@@ -527,3 +532,62 @@ model Receipt {
   @@unique([schoolId, number])
   @@map("receipts")
 }
+
+model Notice {
+  id          String    @id @default(uuid()) @db.Uuid
+  schoolId    String    @map("school_id") @db.Uuid
+  title       String
+  body        String
+  targetRole  String?   @map("target_role")
+  published   Boolean   @default(true)
+  publishedAt DateTime? @map("published_at")
+  authorId    String    @map("author_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId, schoolId], references: [id, schoolId])
+
+  @@unique([id, schoolId])
+  @@index([schoolId, published, publishedAt])
+  @@map("notices")
+}
+
+model Event {
+  id          String   @id @default(uuid()) @db.Uuid
+  schoolId    String   @map("school_id") @db.Uuid
+  title       String
+  description String?
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  location    String?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  school School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  @@unique([id, schoolId])
+  @@index([schoolId, startDate])
+  @@map("events")
+}
+
+model Holiday {
+  id             String        @id @default(uuid()) @db.Uuid
+  schoolId       String        @map("school_id") @db.Uuid
+  name           String
+  date           String
+  academicYearId String?       @map("academic_year_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  school       School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear? @relation(fields: [academicYearId, schoolId], references: [id, schoolId], onDelete: SetNull)
+
+  @@unique([id, schoolId])
+  @@unique([schoolId, date])
+  @@index([schoolId, date])
+  @@index([schoolId, academicYearId])
+  @@map("holidays")
+}
+

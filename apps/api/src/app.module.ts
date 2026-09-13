@@ -13,6 +13,7 @@ import { ParentsModule } from "./modules/parents/parents.module";
 import { StudentsModule } from "./modules/students/students.module";
 import { TeachersModule } from "./modules/teachers/teachers.module";
 import { TimetableModule } from "./modules/timetable/timetable.module";
+import { CommunicationsModule } from "./modules/communications/communications.module";
 import { RbacModule } from "./modules/rbac/rbac.module";
 import { TenancyModule } from "./modules/tenancy/tenancy.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -40,6 +41,7 @@ import { JwtOptionalMiddleware } from "./common/middleware/jwt-optional.middlewa
     FeesModule,
     FilesModule,
     NotificationsModule,
+    CommunicationsModule,
   ],
 })
 export class AppModule implements NestModule {
