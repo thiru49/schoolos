@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ActivityIndicator, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import { ApiError } from "@schoolos/api-client";
+import { PERMISSIONS } from "@schoolos/permissions";
 import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
-import { EmptyState, ErrorState } from "../../components/states/Feedback";
+import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
+import { TeacherMarksEntry } from "./teacher-marks-entry";
 
 type Exam = { id: string; name: string; examDate: string; subjectName: string; maxScore: number };
 type Row = { fullName: string; score: number | null; status: string | null };
@@ -13,13 +16,17 @@ type Row = { fullName: string; score: number | null; status: string | null };
 export function MarksScreen() {
   const { theme, acl, selectedChild } = useBranding();
   const router = useRouter();
-  const isParent = acl?.roles.includes("parent");
+  const canDraft = Boolean(acl?.permissions.includes(PERMISSIONS.MARKS_DRAFT));
+  const isParent = Boolean(acl?.roles.includes("parent"));
   const [exams, setExams] = useState<Exam[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [examName, setExamName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
+    setState("loading");
+    setMessage("");
     try {
       const client = await api();
       const list = await client.exams.list(
@@ -34,18 +41,40 @@ export function MarksScreen() {
         );
         setExamName(`${data.exam.name} · ${data.exam.subjectName}`);
         setRows(data.rows);
+        setState(data.rows.length === 0 ? "empty" : "loaded");
       } else {
         setRows([]);
+        setState("empty");
       }
-      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load marks");
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load marks");
     }
   }, [isParent, selectedChild]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (canDraft) return <TeacherMarksEntry />;
+
+  if (state === "denied") {
+    return (
+      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
+        <DeniedState title="You cannot view these marks" detail={message} />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
@@ -56,12 +85,19 @@ export function MarksScreen() {
         </AppText>
         <AppText variant="caption">{examName}</AppText>
       </View>
-      {error ? <ErrorState message={error} onRetry={() => void load()} /> : null}
-      {exams.length === 0 && !error ? (
+      {state === "loading" ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+        </View>
+      ) : null}
+      {state === "offline" ? <OfflineState onRetry={() => void load()} /> : null}
+      {state === "error" ? <ErrorState message={message} onRetry={() => void load()} /> : null}
+      {state === "empty" ? (
         <View className="p-4">
           <EmptyState title="No published marks" detail="Scores appear after academic publish." />
         </View>
-      ) : (
+      ) : null}
+      {state === "loaded" ? (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           {rows.map((r, i) => (
             <View key={`${r.fullName}-${i}`} className="mb-2 rounded-2xl bg-white p-4">
@@ -72,7 +108,7 @@ export function MarksScreen() {
             </View>
           ))}
         </ScrollView>
-      )}
+      ) : null}
     </View>
   );
 }

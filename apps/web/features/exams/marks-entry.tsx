@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -8,6 +9,9 @@ import { useAppBranding } from "../../lib/branding-context";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { EmptyState } from "../../components/states/empty-state";
+import { ErrorState } from "../../components/states/error-state";
+import { PermissionDenied } from "../../components/states/permission-denied";
+import { Skeleton } from "../../components/ui/skeleton";
 
 type Row = { studentId: string; fullName: string; admissionNumber: string; score: number | null; status: string | null };
 
@@ -19,19 +23,48 @@ export function MarksEntry({ examId }: { examId: string }) {
   const [title, setTitle] = useState("");
   const [maxScore, setMaxScore] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
 
-  async function load() {
-    const data = await api().exams.marks(examId);
-    setTitle(`${data.exam.name} · ${data.exam.subjectName}`);
-    setMaxScore(data.exam.maxScore);
-    setRows(data.rows);
-  }
+  const load = useCallback(async () => {
+    setState("loading");
+    setMessage("");
+    try {
+      const data = await api().exams.marks(examId);
+      setTitle(`${data.exam.name} · ${data.exam.subjectName}`);
+      setMaxScore(data.exam.maxScore);
+      setRows(data.rows);
+      setState(data.rows.length === 0 ? "empty" : "loaded");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load marks");
+    }
+  }, [examId]);
 
   useEffect(() => {
     void load();
-  }, [examId]);
+  }, [load]);
 
-  if (rows.length === 0) {
+  if (state === "denied") {
+    return <PermissionDenied detail={message || "You cannot enter marks for this exam."} />;
+  }
+  if (state === "loading") {
+    return <Skeleton className="h-40 w-full" />;
+  }
+  if (state === "offline" || state === "error") {
+    return <ErrorState message={message} onRetry={() => void load()} />;
+  }
+  if (state === "empty") {
     return <EmptyState title="No students" detail="No roster for this exam section." />;
   }
 
