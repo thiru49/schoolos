@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
@@ -22,6 +23,7 @@ type Row = {
   feeHeadName: string;
   studentName: string;
   receiptNumber: string | null;
+  receiptId: string | null;
   createdAt: string;
 };
 
@@ -256,7 +258,15 @@ export function FeesBoard() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="px-4 py-2">{r.receiptNumber}</td>
+                <td className="px-4 py-2">
+                  {r.receiptId ? (
+                    <Link className="text-primary underline" href={`/fees/receipts/${r.receiptId}`}>
+                      {r.receiptNumber}
+                    </Link>
+                  ) : (
+                    r.receiptNumber
+                  )}
+                </td>
                 <td className="px-4 py-2">{r.studentName}</td>
                 <td className="px-4 py-2">{r.feeHeadName}</td>
                 <td className="px-4 py-2">₹{r.amount}</td>

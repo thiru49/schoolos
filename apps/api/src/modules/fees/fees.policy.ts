@@ -30,11 +30,31 @@ export class FeesPolicy {
     }
   }
 
+  assertReceiptRead(acl: RequestAcl) {
+    if (!acl.permissions.includes(PERMISSIONS.RECEIPTS_READ)) {
+      throw new ForbiddenException("Missing permission receipts.read");
+    }
+  }
+
   assertCanSeeStudent(acl: RequestAcl, studentId: string, linkedChildIds: string[]) {
     this.assertRead(acl);
+    this.assertStudentScope(acl, studentId, linkedChildIds, "You cannot view this student's fees");
+  }
+
+  assertCanSeeReceipt(acl: RequestAcl, studentId: string, linkedChildIds: string[]) {
+    this.assertReceiptRead(acl);
+    this.assertStudentScope(acl, studentId, linkedChildIds, "You cannot view this receipt");
+  }
+
+  private assertStudentScope(
+    acl: RequestAcl,
+    studentId: string,
+    linkedChildIds: string[],
+    message: string,
+  ) {
     if (acl.scopes.some((s) => s.type === "school")) return;
     if (acl.scopes.some((s) => s.type === "self" && s.studentId === studentId)) return;
     if (acl.scopes.some((s) => s.type === "children") && linkedChildIds.includes(studentId)) return;
-    throw new ForbiddenException("You cannot view this student's fees");
+    throw new ForbiddenException(message);
   }
 }

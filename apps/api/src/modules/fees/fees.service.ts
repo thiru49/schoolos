@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from "@prisma/client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { feeHeadCreateSchema, feeRecordSchema } from "@schoolos/validation";
+import { z } from "zod";
 import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
 import { FeesPolicy } from "./fees.policy";
@@ -121,14 +122,17 @@ export class FeesService {
   }
 
   getReceipt(acl: RequestAcl, id: string) {
+    const parsed = z.string().uuid().safeParse(id);
+    if (!parsed.success) throw new NotFoundException("Receipt not found");
+    this.policy.assertReceiptRead(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const receipt = await tx.receipt.findFirst({
-        where: { id, schoolId: acl.schoolId },
+        where: { id: parsed.data, schoolId: acl.schoolId },
         include: { payment: { include: { student: true, feeHead: true } } },
       });
       if (!receipt) throw new NotFoundException("Receipt not found");
       const linked = await this.linkedChildIds(tx, acl);
-      this.policy.assertCanSeeStudent(acl, receipt.payment.studentId, linked);
+      this.policy.assertCanSeeReceipt(acl, receipt.payment.studentId, linked);
       return {
         id: receipt.id,
         number: receipt.number,
