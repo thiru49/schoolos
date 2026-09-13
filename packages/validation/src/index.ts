@@ -198,5 +198,50 @@ export const homeworkUpdateSchema = z.object({
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+export const NOTICE_TARGET_ROLES = ["all", "student", "parent", "teacher"] as const;
+
+export const noticeCreateSchema = z.object({
+  title: z.string().trim().min(1),
+  body: z.string().trim().min(1),
+  targetRole: z.enum(NOTICE_TARGET_ROLES).nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const noticeUpdateSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  body: z.string().trim().min(1).optional(),
+  targetRole: z.enum(NOTICE_TARGET_ROLES).nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const eventCreateSchema = z.object({
+  title: z.string().trim().min(1),
+  description: z.string().trim().nullable().optional(),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
+  location: z.string().trim().nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const eventUpdateSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  description: z.string().trim().nullable().optional(),
+  startDate: z.string().min(1).optional(),
+  endDate: z.string().min(1).optional(),
+  location: z.string().trim().nullable().optional(),
+  published: z.boolean().optional(),
+});
+
+export const holidayCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
+export type NoticeCreateInput = z.infer<typeof noticeCreateSchema>;
+export type NoticeUpdateInput = z.infer<typeof noticeUpdateSchema>;
+export type EventCreateInput = z.infer<typeof eventCreateSchema>;
+export type EventUpdateInput = z.infer<typeof eventUpdateSchema>;
+export type HolidayCreateInput = z.infer<typeof holidayCreateSchema>;
+
