@@ -210,6 +210,14 @@ export function createApiClient(options: {
             createdAt: string;
           }[]
         >(`/fees${studentId ? `?studentId=${studentId}` : ""}`),
+      summary: (studentId?: string) =>
+        request<{
+          studentId: string;
+          studentName: string;
+          headsTotal: number;
+          paidTotal: number;
+          dues: number;
+        }>(`/fees/summary${studentId ? `?studentId=${studentId}` : ""}`),
       previewNumber: () => request<{ preview: string }>("/fees/preview-number"),
       record: (body: {
         studentId: string;

@@ -51,8 +51,7 @@ export class FeesService {
       }
       if (target) this.policy.assertCanSeeStudent(acl, target, linked);
       else if (!acl.scopes.some((s) => s.type === "school")) {
-        target = linked[0];
-        if (!target) return [];
+        throw new BadRequestException("studentId is required");
       }
       const rows = await tx.feePayment.findMany({
         where: {
@@ -143,6 +142,43 @@ export class FeesService {
         studentName: receipt.payment.student.fullName,
         admissionNumber: receipt.payment.student.admissionNumber,
         createdAt: receipt.payment.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async summary(acl: RequestAcl, studentId?: string) {
+    this.policy.assertRead(acl);
+    if (studentId && !z.string().uuid().safeParse(studentId).success) {
+      throw new BadRequestException("studentId is required");
+    }
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const linked = await this.linkedChildIds(tx, acl);
+      let target = studentId;
+      if (!target && acl.scopes.some((s) => s.type === "self")) {
+        const me = await tx.student.findFirst({ where: { schoolId: acl.schoolId, userId: acl.userId } });
+        target = me?.id;
+      }
+      if (!target) throw new BadRequestException("studentId is required");
+      this.policy.assertCanSeeStudent(acl, target, linked);
+      const student = await tx.student.findFirst({
+        where: { id: target, schoolId: acl.schoolId },
+      });
+      if (!student) throw new NotFoundException("Student not found");
+      const [heads, paid] = await Promise.all([
+        tx.feeHead.aggregate({ where: { schoolId: acl.schoolId }, _sum: { amount: true } }),
+        tx.feePayment.aggregate({
+          where: { schoolId: acl.schoolId, studentId: target },
+          _sum: { amount: true },
+        }),
+      ]);
+      const headsTotal = heads._sum.amount ?? 0;
+      const paidTotal = paid._sum.amount ?? 0;
+      return {
+        studentId: student.id,
+        studentName: student.fullName,
+        headsTotal,
+        paidTotal,
+        dues: Math.max(0, headsTotal - paidTotal),
       };
     });
   }
