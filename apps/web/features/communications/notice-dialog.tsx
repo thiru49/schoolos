@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Send, FileEdit } from "lucide-react";
-import { toast } from "sonner";
+import { Send, FileEdit } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import { Select } from "../../components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+  DialogFooter,
+} from "../../components/ui/dialog";
 import type { NoticeItem } from "./communications-types";
 import type { NoticeTargetRole } from "@schoolos/api-client";
 
@@ -46,8 +55,6 @@ export function NoticeDialog({
     }
   }, [isOpen, initialData]);
 
-  if (!isOpen) return null;
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
@@ -80,13 +87,9 @@ export function NoticeDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs"
-    >
-      <div className="relative w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
           <div className="flex items-center gap-2">
             {isEditing ? (
               <FileEdit className="h-5 w-5 text-primary" />
@@ -94,25 +97,16 @@ export function NoticeDialog({
               <Send className="h-5 w-5 text-primary" />
             )}
             <div>
-              <h2 className="font-display text-lg font-bold text-slate-900">
-                {isEditing ? "Edit Notice" : "Create Notice"}
-              </h2>
-              <p className="text-xs text-slate-500">
+              <DialogTitle>{isEditing ? "Edit Notice" : "Create Notice"}</DialogTitle>
+              <DialogDescription>
                 {isEditing
                   ? "Update announcement details or publish status."
                   : "Publish an announcement to students, parents, or staff."}
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
+          <DialogClose onClick={onClose} />
+        </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {error ? (
@@ -134,16 +128,16 @@ export function NoticeDialog({
 
           <div>
             <label className="text-xs font-semibold text-slate-700">Target Audience</label>
-            <select
+            <Select
               value={targetRole}
               onChange={(e) => setTargetRole(e.target.value)}
-              className="mt-1 flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="mt-1"
             >
               <option value="all">Everyone (School-wide)</option>
               <option value="student">Students only</option>
               <option value="parent">Parents only</option>
               <option value="teacher">Teachers / Staff only</option>
-            </select>
+            </Select>
           </div>
 
           <div>
@@ -154,7 +148,6 @@ export function NoticeDialog({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               className="mt-1 flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              required
             />
           </div>
 
@@ -171,16 +164,16 @@ export function NoticeDialog({
             </label>
           </div>
 
-          <div className="mt-6 flex justify-end gap-2 pt-2">
+          <DialogFooter>
             <Button variant="secondary" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={saving}>
               {saving ? "Saving..." : isEditing ? "Update Notice" : "Save Notice"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

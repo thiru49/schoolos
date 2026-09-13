@@ -18,6 +18,15 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
+import { Select } from "../../components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "../../components/ui/table";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
@@ -37,9 +46,19 @@ function formatHolidayDate(dateIso: string) {
 }
 
 export function HolidaysBoard() {
-  const { acl } = useAppBranding();
+  const { acl, branding } = useAppBranding();
   const canRead = acl.permissions.includes(PERMISSIONS.NOTICES_READ);
   const canManage = acl.permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE);
+
+  const activeYearLabel = useMemo(() => {
+    if (branding.receiptPrefix && branding.receiptPrefix.includes("/")) {
+      const segment = branding.receiptPrefix.split("/")[1]?.trim();
+      if (segment) {
+        return /^\d{2}-\d{2}$/.test(segment) ? `20${segment}` : segment;
+      }
+    }
+    return "2026-27";
+  }, [branding.receiptPrefix]);
 
   const [holidays, setHolidays] = useState<HolidayItem[]>([]);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
@@ -50,15 +69,6 @@ export function HolidaysBoard() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Derive all distinct academicYearIds from known holidays
-  const knownAcademicYearIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const h of holidays) {
-      if (h.academicYearId) set.add(h.academicYearId);
-    }
-    return Array.from(set);
-  }, [holidays]);
 
   const loadHolidays = useCallback(async (yearId?: string) => {
     if (!canRead) {
@@ -174,19 +184,15 @@ export function HolidaysBoard() {
           {/* Academic Year Filter */}
           <div className="flex items-center gap-1.5">
             <Filter size={14} className="text-slate-400" />
-            <select
+            <Select
               value={selectedYearFilter}
               onChange={(e) => setSelectedYearFilter(e.target.value)}
-              className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-primary focus:outline-none"
+              className="h-10 w-auto text-xs"
             >
               <option value="all">All Academic Years</option>
-              {knownAcademicYearIds.map((yrId) => (
-                <option key={yrId} value={yrId}>
-                  Year ID: {yrId.slice(0, 8)}...
-                </option>
-              ))}
+              <option value="active">Active Year ({activeYearLabel})</option>
               <option value="custom">Filter by Year ID...</option>
-            </select>
+            </Select>
             {selectedYearFilter === "custom" ? (
               <Input
                 placeholder="Enter Year UUID"
@@ -242,58 +248,54 @@ export function HolidaysBoard() {
               {filteredHolidays.length} holiday{filteredHolidays.length === 1 ? "" : "s"} scheduled
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Date</th>
-                  <th className="px-5 py-3">Holiday Name</th>
-                  <th className="px-5 py-3">Academic Year</th>
-                  {canManage ? <th className="px-5 py-3 text-right">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredHolidays.map((holiday) => (
-                  <tr key={holiday.id} className="transition-colors hover:bg-slate-50/60">
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs font-semibold text-slate-900">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={13} className="text-amber-500" />
-                        <span>{formatHolidayDate(holiday.date)}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 font-medium text-slate-800">
-                      <div className="flex items-center gap-2">
-                        <Sun size={14} className="text-amber-500" />
-                        <span>{holiday.name}</span>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-500">
-                      {holiday.academicYearId ? (
-                        <Badge variant="muted">
-                          Year: {holiday.academicYearId.slice(0, 8)}...
-                        </Badge>
-                      ) : (
-                        <Badge variant="muted">Active Academic Year</Badge>
-                      )}
-                    </td>
-                    {canManage ? (
-                      <td className="whitespace-nowrap px-5 py-3.5 text-right">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
-                          disabled={deletingId === holiday.id}
-                          onClick={() => void handleDeleteHoliday(holiday.id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Holiday Name</TableHead>
+                <TableHead>Academic Year</TableHead>
+                {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredHolidays.map((holiday) => (
+                <TableRow key={holiday.id}>
+                  <TableCell className="whitespace-nowrap text-xs font-semibold text-slate-900">
+                    <div className="flex items-center gap-2">
+                      <Calendar size={13} className="text-amber-500" />
+                      <span>{formatHolidayDate(holiday.date)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium text-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Sun size={14} className="text-amber-500" />
+                      <span>{holiday.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-500">
+                    <Badge variant="muted">
+                      {holiday.academicYearId
+                        ? `Academic Year (${activeYearLabel})`
+                        : `Active Year (${activeYearLabel})`}
+                    </Badge>
+                  </TableCell>
+                  {canManage ? (
+                    <TableCell className="whitespace-nowrap text-right">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
+                        disabled={deletingId === holiday.id}
+                        onClick={() => void handleDeleteHoliday(holiday.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
@@ -302,7 +304,6 @@ export function HolidaysBoard() {
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSave={handleSaveHoliday}
-        knownAcademicYears={knownAcademicYearIds}
       />
     </div>
   );

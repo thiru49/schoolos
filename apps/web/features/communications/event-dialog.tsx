@@ -1,9 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, CalendarDays, FileEdit } from "lucide-react";
+import { CalendarDays, FileEdit } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+  DialogFooter,
+} from "../../components/ui/dialog";
 import { todayIso } from "../../lib/utils";
 import type { EventItem } from "./communications-types";
 
@@ -50,8 +59,6 @@ export function EventDialog({
     }
   }, [isOpen, initialData]);
 
-  if (!isOpen) return null;
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
@@ -91,13 +98,9 @@ export function EventDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs"
-    >
-      <div className="relative w-full max-w-lg rounded-2xl border border-slate-100 bg-white p-6 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
           <div className="flex items-center gap-2">
             {isEditing ? (
               <FileEdit className="h-5 w-5 text-primary" />
@@ -105,25 +108,18 @@ export function EventDialog({
               <CalendarDays className="h-5 w-5 text-primary" />
             )}
             <div>
-              <h2 className="font-display text-lg font-bold text-slate-900">
+              <DialogTitle>
                 {isEditing ? "Edit School Event" : "Create School Event"}
-              </h2>
-              <p className="text-xs text-slate-500">
+              </DialogTitle>
+              <DialogDescription>
                 {isEditing
                   ? "Update event schedule, venue, or publish status."
                   : "Add an event to the school-wide calendar."}
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
+          <DialogClose onClick={onClose} />
+        </DialogHeader>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {error ? (
@@ -199,16 +195,16 @@ export function EventDialog({
             </label>
           </div>
 
-          <div className="mt-6 flex justify-end gap-2 pt-2">
+          <DialogFooter>
             <Button variant="secondary" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={saving}>
               {saving ? "Saving..." : isEditing ? "Update Event" : "Save Event"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

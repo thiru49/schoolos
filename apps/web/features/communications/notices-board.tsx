@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import {
-  MessageSquare,
   Plus,
   Search,
   Pencil,
@@ -13,8 +12,6 @@ import {
   GraduationCap,
   Users,
   UserCheck,
-  CheckCircle2,
-  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -23,6 +20,15 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
+import { Select } from "../../components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "../../components/ui/table";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
@@ -195,28 +201,28 @@ export function NoticesBoard() {
           </div>
 
           {/* Status Filter */}
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-primary focus:outline-none"
+            className="h-10 w-auto text-xs"
           >
             <option value="all">All Status</option>
             <option value="published">Published</option>
             <option value="draft">Drafts</option>
-          </select>
+          </Select>
 
           {/* Audience Filter */}
-          <select
+          <Select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-primary focus:outline-none"
+            className="h-10 w-auto text-xs"
           >
             <option value="all">All Audiences</option>
             <option value="everyone">Everyone</option>
             <option value="student">Students</option>
             <option value="parent">Parents</option>
             <option value="teacher">Teachers</option>
-          </select>
+          </Select>
         </div>
 
         {/* Action Button */}
@@ -266,91 +272,89 @@ export function NoticesBoard() {
               {filteredNotices.length} notice{filteredNotices.length === 1 ? "" : "s"} found
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Notice</th>
-                  <th className="px-5 py-3">Audience</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Author</th>
-                  <th className="px-5 py-3">Date</th>
-                  {canWrite ? <th className="px-5 py-3 text-right">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredNotices.map((notice) => (
-                  <tr key={notice.id} className="transition-colors hover:bg-slate-50/60">
-                    <td className="max-w-xs px-5 py-3.5">
-                      <p className="font-semibold text-slate-900">{notice.title}</p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{notice.body}</p>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5">
-                      {audienceBadge(notice.targetRole)}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5">
-                      {notice.published ? (
-                        <div className="flex flex-col">
-                          <Badge variant="published" className="w-fit">
-                            Published
-                          </Badge>
-                          {notice.publishedAt ? (
-                            <span className="mt-1 text-[11px] text-slate-400">
-                              {new Date(notice.publishedAt).toLocaleDateString()}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <Badge variant="muted" className="w-fit">
-                          Draft
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Notice</TableHead>
+                <TableHead>Audience</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Author</TableHead>
+                <TableHead>Date</TableHead>
+                {canWrite ? <TableHead className="text-right">Actions</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredNotices.map((notice) => (
+                <TableRow key={notice.id}>
+                  <TableCell className="max-w-xs">
+                    <p className="font-semibold text-slate-900">{notice.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{notice.body}</p>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {audienceBadge(notice.targetRole)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {notice.published ? (
+                      <div className="flex flex-col">
+                        <Badge variant="published" className="w-fit">
+                          Published
                         </Badge>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-600">
-                      {notice.authorName || "Staff"}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-500">
-                      {new Date(notice.createdAt).toLocaleDateString()}
-                    </td>
-                    {canWrite ? (
-                      <td className="whitespace-nowrap px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => void handleTogglePublish(notice)}
-                          >
-                            {notice.published ? "Unpublish" : "Publish"}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-slate-600 hover:text-primary"
-                            onClick={() => {
-                              setEditingNotice(notice);
-                              setDialogOpen(true);
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
-                            disabled={deletingId === notice.id}
-                            onClick={() => void handleDeleteNotice(notice.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                        {notice.publishedAt ? (
+                          <span className="mt-1 text-[11px] text-slate-400">
+                            {new Date(notice.publishedAt).toLocaleDateString()}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <Badge variant="muted" className="w-fit">
+                        Draft
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-600">
+                    {notice.authorName || "Staff"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-500">
+                    {new Date(notice.createdAt).toLocaleDateString()}
+                  </TableCell>
+                  {canWrite ? (
+                    <TableCell className="whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => void handleTogglePublish(notice)}
+                        >
+                          {notice.published ? "Unpublish" : "Publish"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-slate-600 hover:text-primary"
+                          onClick={() => {
+                            setEditingNotice(notice);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
+                          disabled={deletingId === notice.id}
+                          onClick={() => void handleDeleteNotice(notice.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 

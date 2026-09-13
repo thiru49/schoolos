@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import {
-  CalendarDays,
   Plus,
   Search,
   Pencil,
@@ -19,6 +18,15 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
+import { Select } from "../../components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "../../components/ui/table";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
@@ -181,15 +189,15 @@ export function EventsBoard() {
           </div>
 
           {/* Status Filter */}
-          <select
+          <Select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 focus:border-primary focus:outline-none"
+            className="h-10 w-auto text-xs"
           >
             <option value="all">All Status</option>
             <option value="published">Published</option>
             <option value="draft">Drafts</option>
-          </select>
+          </Select>
 
           {/* Date range inputs */}
           <div className="flex items-center gap-1.5">
@@ -271,90 +279,88 @@ export function EventsBoard() {
               {filteredEvents.length} event{filteredEvents.length === 1 ? "" : "s"} listed
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Event</th>
-                  <th className="px-5 py-3">Schedule</th>
-                  <th className="px-5 py-3">Location</th>
-                  <th className="px-5 py-3">Status</th>
-                  {canWrite ? <th className="px-5 py-3 text-right">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEvents.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-slate-50/60">
-                    <td className="max-w-xs px-5 py-3.5">
-                      <p className="font-semibold text-slate-900">{item.title}</p>
-                      {item.description ? (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
-                          {item.description}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-700">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={13} className="text-slate-400" />
-                        <span>{formatDateRange(item.startDate, item.endDate)}</span>
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-600">
-                      {item.location ? (
-                        <div className="flex items-center gap-1">
-                          <MapPin size={12} className="text-slate-400" />
-                          <span>{item.location}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5">
-                      {item.published ? (
-                        <Badge variant="published">Published</Badge>
-                      ) : (
-                        <Badge variant="muted">Draft</Badge>
-                      )}
-                    </td>
-                    {canWrite ? (
-                      <td className="whitespace-nowrap px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => void handleTogglePublish(item)}
-                          >
-                            {item.published ? "Unpublish" : "Publish"}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-slate-600 hover:text-primary"
-                            onClick={() => {
-                              setEditingEvent(item);
-                              setDialogOpen(true);
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
-                            disabled={deletingId === item.id}
-                            onClick={() => void handleDeleteEvent(item.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </td>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event</TableHead>
+                <TableHead>Schedule</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Status</TableHead>
+                {canWrite ? <TableHead className="text-right">Actions</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredEvents.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="max-w-xs">
+                    <p className="font-semibold text-slate-900">{item.title}</p>
+                    {item.description ? (
+                      <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                        {item.description}
+                      </p>
                     ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={13} className="text-slate-400" />
+                      <span>{formatDateRange(item.startDate, item.endDate)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-600">
+                    {item.location ? (
+                      <div className="flex items-center gap-1">
+                        <MapPin size={12} className="text-slate-400" />
+                        <span>{item.location}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {item.published ? (
+                      <Badge variant="published">Published</Badge>
+                    ) : (
+                      <Badge variant="muted">Draft</Badge>
+                    )}
+                  </TableCell>
+                  {canWrite ? (
+                    <TableCell className="whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => void handleTogglePublish(item)}
+                        >
+                          {item.published ? "Unpublish" : "Publish"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-slate-600 hover:text-primary"
+                          onClick={() => {
+                            setEditingEvent(item);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-slate-600 hover:text-danger"
+                          disabled={deletingId === item.id}
+                          onClick={() => void handleDeleteEvent(item.id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
