@@ -68,7 +68,11 @@ export class FeesService {
 
   record(acl: RequestAcl, body: unknown) {
     this.policy.assertRecord(acl);
-    const input = feeRecordSchema.parse(body);
+    const parsed = feeRecordSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((i) => i.message).join("; "));
+    }
+    const input = parsed.data;
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const student = await tx.student.findFirst({
         where: { id: input.studentId, schoolId: acl.schoolId },

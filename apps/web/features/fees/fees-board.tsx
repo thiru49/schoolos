@@ -44,6 +44,8 @@ export function FeesBoard() {
   const [method, setMethod] = useState<"cash" | "upi" | "bank">("cash");
   const [note, setNote] = useState("");
   const [q, setQ] = useState("");
+  const [savingRecord, setSavingRecord] = useState(false);
+  const [recordError, setRecordError] = useState("");
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
   const [message, setMessage] = useState("");
 
@@ -194,24 +196,45 @@ export function FeesBoard() {
           </div>
           <Input placeholder="Ref / note" value={note} onChange={(e) => setNote(e.target.value)} />
           <p className="text-sm text-slate-500">Receipt preview {preview || "—"}</p>
+          {recordError ? <p className="text-sm text-danger md:col-span-2">{recordError}</p> : null}
           <Button
+            disabled={savingRecord || !studentId || !feeHeadId}
             onClick={async () => {
+              const amt = Number(amount);
+              if (!studentId) {
+                setRecordError("Select a student.");
+                return;
+              }
+              if (!feeHeadId) {
+                setRecordError("Select a fee head.");
+                return;
+              }
+              if (!Number.isInteger(amt) || amt <= 0) {
+                setRecordError("Amount must be a positive whole number.");
+                return;
+              }
+              setSavingRecord(true);
+              setRecordError("");
               try {
                 const r = await api().fees.record({
                   studentId,
                   feeHeadId,
-                  amount: Number(amount),
+                  amount: amt,
                   method,
                   note: note || undefined,
                 });
                 toast.success(`Issued ${r.receiptNumber}`);
                 await load();
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Record failed");
+                const msg = e instanceof Error ? e.message : "Record failed";
+                setRecordError(msg);
+                toast.error(msg);
+              } finally {
+                setSavingRecord(false);
               }
             }}
           >
-            Save & issue
+            {savingRecord ? "Issuing…" : "Save & issue"}
           </Button>
         </div>
       ) : null}
