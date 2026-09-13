@@ -28,6 +28,28 @@ describe("FeesPolicy", () => {
     expect(() => policy.assertCanSeeStudent(acl, "st2", ["st1"])).toThrow(ForbiddenException);
   });
 
+  it("allows accounts admin to write structure with school scope", () => {
+    const acl: RequestAcl = {
+      userId: "a1",
+      schoolId: "s1",
+      roles: ["accounts_admin"],
+      permissions: [PERMISSIONS.FEES_STRUCTURE_WRITE],
+      scopes: [{ type: "school" }],
+    };
+    expect(() => policy.assertStructure(acl)).not.toThrow();
+  });
+
+  it("denies structure write without school scope", () => {
+    const acl: RequestAcl = {
+      userId: "t1",
+      schoolId: "s1",
+      roles: ["teacher"],
+      permissions: [PERMISSIONS.FEES_STRUCTURE_WRITE],
+      scopes: [{ type: "section", sectionId: "sec-8a" }],
+    };
+    expect(() => policy.assertStructure(acl)).toThrow(ForbiddenException);
+  });
+
   it("denies teacher recording fees", () => {
     const acl: RequestAcl = {
       userId: "t1",

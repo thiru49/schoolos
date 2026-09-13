@@ -172,7 +172,7 @@ export const marksDraftSchema = z.object({
 });
 
 export const feeHeadCreateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
   amount: z.number().int().positive(),
 });
 

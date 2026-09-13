@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -8,6 +9,9 @@ import { useAppBranding } from "../../lib/branding-context";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { EmptyState } from "../../components/states/empty-state";
+import { ErrorState } from "../../components/states/error-state";
+import { PermissionDenied } from "../../components/states/permission-denied";
+import { Skeleton } from "../../components/ui/skeleton";
 
 type Head = { id: string; name: string; amount: number };
 type Student = { id: string; fullName: string; admissionNumber: string };
@@ -23,6 +27,7 @@ type Row = {
 
 export function FeesBoard() {
   const { acl } = useAppBranding();
+  const canRead = acl.permissions.includes(PERMISSIONS.FEES_READ);
   const canRecord = acl.permissions.includes(PERMISSIONS.FEES_RECORD);
   const canStructure = acl.permissions.includes(PERMISSIONS.FEES_STRUCTURE_WRITE);
   const [heads, setHeads] = useState<Head[]>([]);
@@ -31,26 +36,53 @@ export function FeesBoard() {
   const [preview, setPreview] = useState("");
   const [headName, setHeadName] = useState("");
   const [headAmount, setHeadAmount] = useState("12500");
+  const [headError, setHeadError] = useState("");
+  const [savingHead, setSavingHead] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [feeHeadId, setFeeHeadId] = useState("");
   const [amount, setAmount] = useState("12500");
   const [method, setMethod] = useState<"cash" | "upi" | "bank">("cash");
   const [note, setNote] = useState("");
   const [q, setQ] = useState("");
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
 
   async function load() {
-    const [h, p, list] = await Promise.all([
-      api().fees.heads(),
-      canRecord ? api().fees.previewNumber() : Promise.resolve({ preview: "" }),
-      api().fees.list(),
-    ]);
-    setHeads(h);
-    if (h[0] && !feeHeadId) {
-      setFeeHeadId(h[0].id);
-      setAmount(String(h[0].amount));
+    if (!canRead) {
+      setState("denied");
+      setMessage("You do not have permission to view fees.");
+      return;
     }
-    setPreview(p.preview);
-    setRows(list);
+    setState("loading");
+    setMessage("");
+    try {
+      const [h, p, list] = await Promise.all([
+        api().fees.heads(),
+        canRecord ? api().fees.previewNumber() : Promise.resolve({ preview: "" }),
+        api().fees.list(),
+      ]);
+      setHeads(h);
+      if (h[0] && !feeHeadId) {
+        setFeeHeadId(h[0].id);
+        setAmount(String(h[0].amount));
+      }
+      setPreview(p.preview);
+      setRows(list);
+      setState(list.length === 0 && h.length === 0 ? "empty" : "loaded");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load fees");
+    }
   }
 
   useEffect(() => {
@@ -63,28 +95,61 @@ export function FeesBoard() {
     if (list[0]) setStudentId(list[0].id);
   }
 
+  async function addHead() {
+    const name = headName.trim();
+    const amt = Number(headAmount);
+    if (!name) {
+      setHeadError("Enter a fee head name.");
+      return;
+    }
+    if (!Number.isInteger(amt) || amt <= 0) {
+      setHeadError("Amount must be a positive whole number.");
+      return;
+    }
+    setSavingHead(true);
+    setHeadError("");
+    try {
+      const h = await api().fees.createHead({ name, amount: amt });
+      setHeads((prev) => [...prev, h]);
+      setFeeHeadId(h.id);
+      setAmount(String(h.amount));
+      setHeadName("");
+      setState("loaded");
+      toast.success("Fee head saved");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Head failed";
+      setHeadError(msg);
+      toast.error(msg);
+    } finally {
+      setSavingHead(false);
+    }
+  }
+
+  if (state === "denied") {
+    return <PermissionDenied detail={message || "You cannot manage fees."} />;
+  }
+  if (state === "offline" || state === "error") {
+    return <ErrorState message={message} onRetry={() => void load()} />;
+  }
+  if (state === "loading") {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
   return (
     <div>
       {canStructure ? (
-        <div className="mb-4 flex gap-2 rounded-2xl bg-white p-4 shadow-sm">
-          <Input placeholder="Fee head name" value={headName} onChange={(e) => setHeadName(e.target.value)} />
-          <Input value={headAmount} onChange={(e) => setHeadAmount(e.target.value)} />
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              try {
-                const h = await api().fees.createHead({ name: headName, amount: Number(headAmount) });
-                setHeads((prev) => [...prev, h]);
-                setFeeHeadId(h.id);
-                setHeadName("");
-                toast.success("Fee head saved");
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Head failed");
-              }
-            }}
-          >
-            Add head
-          </Button>
+        <div className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
+          <div className="flex gap-2">
+            <Input placeholder="Fee head name" value={headName} onChange={(e) => setHeadName(e.target.value)} />
+            <Input value={headAmount} onChange={(e) => setHeadAmount(e.target.value)} />
+            <Button variant="secondary" disabled={savingHead} onClick={() => void addHead()}>
+              {savingHead ? "Saving…" : "Add head"}
+            </Button>
+          </div>
+          {headError ? <p className="mt-2 text-sm text-danger">{headError}</p> : null}
+          {heads.length === 0 ? (
+            <p className="mt-3 text-sm text-slate-500">No fee heads yet. Add a name and amount to start recording.</p>
+          ) : null}
         </div>
       ) : null}
       {canRecord ? (
@@ -112,6 +177,7 @@ export function FeesBoard() {
               if (h) setAmount(String(h.amount));
             }}
           >
+            {heads.length === 0 ? <option value="">No fee heads</option> : null}
             {heads.map((h) => (
               <option key={h.id} value={h.id}>
                 {h.name}
@@ -121,7 +187,7 @@ export function FeesBoard() {
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} />
           <div className="flex gap-2">
             {(["cash", "upi", "bank"] as const).map((m) => (
-              <Button key={m} variant={method === m ? "primary" : "secondary"} onClick={() => setMethod(m)}>
+              <Button key={m} variant={method === m ? "primary" : "secondary" } onClick={() => setMethod(m)}>
                 {m.toUpperCase()}
               </Button>
             ))}

@@ -16,6 +16,9 @@ export class FeesPolicy {
     if (!acl.permissions.includes(PERMISSIONS.FEES_STRUCTURE_WRITE)) {
       throw new ForbiddenException("Missing permission fees.structure.write");
     }
+    if (!acl.scopes.some((s) => s.type === "school")) {
+      throw new ForbiddenException("Fee structure write requires school scope");
+    }
   }
 
   assertRead(acl: RequestAcl) {
