@@ -65,7 +65,16 @@ export function MarksEntry({ examId }: { examId: string }) {
     return <ErrorState message={message} onRetry={() => void load()} />;
   }
   if (state === "empty") {
-    return <EmptyState title="No students" detail="No roster for this exam section." />;
+    return (
+      <EmptyState
+        title={canDraft || canPublish ? "No students" : "No published marks"}
+        detail={
+          canDraft || canPublish
+            ? "No roster for this exam section."
+            : "Scores appear after academic publish."
+        }
+      />
+    );
   }
 
   return (

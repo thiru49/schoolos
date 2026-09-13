@@ -68,13 +68,13 @@ async function main() {
   });
   if (teacherWrite.ok) throw new Error("teacher must not write timetable");
 
-  const minute = String((Date.now() % 50) + 10).padStart(2, "0");
-  const startTime = `14:${minute}`;
-  const endHour = "14";
-  const endMinute = String(Number(minute) + 5).padStart(2, "0");
-  const endTime = `${endHour}:${endMinute}`;
-  const overlapStart = `14:${String(Number(minute) + 2).padStart(2, "0")}`;
-  const overlapEnd = `14:${String(Number(minute) + 8).padStart(2, "0")}`;
+  const weekday = 7;
+  const minute = String(Date.now() % 50).padStart(2, "0");
+  const startTime = `16:${minute}`;
+  const endMinute = String((Date.now() % 50) + 5).padStart(2, "0");
+  const endTime = `16:${endMinute}`;
+  const overlapStart = `16:${String((Date.now() % 50) + 2).padStart(2, "0")}`;
+  const overlapEnd = `16:${String((Date.now() % 50) + 8).padStart(2, "0")}`;
 
   const created = await authed(admin.accessToken, "/timetable", {
     method: "POST",
@@ -83,7 +83,7 @@ async function main() {
       sectionId: eightA.id,
       subjectId: sub.id,
       teacherId: tch.id,
-      weekday: 3,
+      weekday,
       startTime,
       endTime,
     }),
@@ -98,14 +98,14 @@ async function main() {
       sectionId: eightA.id,
       subjectId: sub.id,
       teacherId: tch.id,
-      weekday: 3,
+      weekday,
       startTime: overlapStart,
       endTime: overlapEnd,
     }),
   });
   if (overlap.ok) throw new Error("overlapping period must be rejected");
 
-  const studentDraft = await authed(student.accessToken, `/timetable?sectionId=${eightA.id}&weekday=3`);
+  const studentDraft = await authed(student.accessToken, `/timetable?sectionId=${eightA.id}&weekday=${weekday}`);
   const draftRows = studentDraft.ok ? ((await studentDraft.json()) as { id: string }[]) : [];
   if (draftRows.some((r) => r.id === period.id)) throw new Error("student must not see unpublished period");
 
@@ -115,12 +115,12 @@ async function main() {
   });
   if (!published.ok) throw new Error("publish failed " + (await published.text()));
 
-  const studentLive = (await (await authed(student.accessToken, `/timetable?weekday=3`)).json()) as { id: string }[];
+  const studentLive = (await (await authed(student.accessToken, `/timetable?weekday=${weekday}`)).json()) as { id: string }[];
   if (!studentLive.some((r) => r.id === period.id)) throw new Error("student must see published period");
 
   const children = (await (await authed(parent.accessToken, "/me/children")).json()) as { studentId: string }[];
   const parentLive = (await (
-    await authed(parent.accessToken, `/timetable?studentId=${children[0]?.studentId}&weekday=3`)
+    await authed(parent.accessToken, `/timetable?studentId=${children[0]?.studentId}&weekday=${weekday}`)
   ).json()) as { id: string }[];
   if (!parentLive.some((r) => r.id === period.id)) throw new Error("parent must see child published timetable");
 
