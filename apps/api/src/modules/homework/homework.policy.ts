@@ -10,13 +10,20 @@ export class HomeworkPolicy {
     this.assertSection(acl, sectionId, classId);
   }
 
-  assertReadSection(acl: RequestAcl, sectionId: string, classId: string) {
+  assertReadSection(
+    acl: RequestAcl,
+    sectionId: string,
+    classId: string,
+    opts?: { selfInSection?: boolean; childInSection?: boolean },
+  ) {
     if (!acl.permissions.includes(PERMISSIONS.HOMEWORK_READ)) {
       throw new ForbiddenException("Missing permission homework.read");
     }
     if (this.hasSchool(acl)) return;
     if (acl.scopes.some((s) => s.type === "section" && s.sectionId === sectionId)) return;
     if (acl.scopes.some((s) => s.type === "class" && s.classId === classId)) return;
+    if (opts?.selfInSection) return;
+    if (opts?.childInSection) return;
     throw new ForbiddenException("You cannot read homework for this section");
   }
 

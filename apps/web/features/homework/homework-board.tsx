@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -10,6 +11,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
+import { PermissionDenied } from "../../components/states/permission-denied";
+import { Skeleton } from "../../components/ui/skeleton";
 
 type Section = { id: string; classId: string; label: string };
 type Row = {
@@ -27,19 +30,39 @@ export function HomeworkBoard() {
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionId, setSectionId] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [dueDate, setDueDate] = useState(todayIso());
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editDue, setEditDue] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (!sectionId) return;
+    setState("loading");
+    setMessage("");
     try {
-      setRows(await api().homework.list({ sectionId: sectionId || undefined }));
-      setError(null);
+      const list = await api().homework.list({ sectionId });
+      setRows(list);
+      setState(list.length === 0 ? "empty" : "loaded");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load homework");
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load homework");
     }
-  }
+  }, [sectionId]);
 
   useEffect(() => {
     api()
@@ -48,12 +71,20 @@ export function HomeworkBoard() {
         setSections(list);
         if (list[0]) setSectionId(list[0].id);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) {
+          setState("denied");
+          setMessage(e.message);
+        } else {
+          setState("error");
+          setMessage(e instanceof Error ? e.message : "Failed to load sections");
+        }
+      });
   }, []);
 
   useEffect(() => {
     if (sectionId) void load();
-  }, [sectionId]);
+  }, [sectionId, load]);
 
   async function create() {
     const section = sections.find((s) => s.id === sectionId);
@@ -75,6 +106,22 @@ export function HomeworkBoard() {
     }
   }
 
+  async function saveEdit() {
+    if (!selected) return;
+    try {
+      await api().homework.update(selected.id, { title: editTitle, body: editBody, dueDate: editDue });
+      toast.success("Homework updated");
+      setSelected(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Update failed");
+    }
+  }
+
+  if (state === "denied") {
+    return <PermissionDenied detail={message || "You cannot view homework for this section."} />;
+  }
+
   return (
     <div>
       <select className="h-10 rounded-lg border px-3 text-sm" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
@@ -92,12 +139,23 @@ export function HomeworkBoard() {
           <Button onClick={() => void create()}>Create homework</Button>
         </div>
       ) : null}
-      {error ? <div className="mt-6"><ErrorState message={error} onRetry={() => void load()} /></div> : null}
-      {rows.length === 0 && !error ? (
+
+      {state === "loading" ? (
+        <div className="mt-6">
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : null}
+      {state === "offline" || state === "error" ? (
+        <div className="mt-6">
+          <ErrorState message={message} onRetry={() => void load()} />
+        </div>
+      ) : null}
+      {state === "empty" ? (
         <div className="mt-6">
           <EmptyState title="No homework" detail="No assignments for this section." />
         </div>
-      ) : (
+      ) : null}
+      {state === "loaded" ? (
         <table className="mt-6 w-full overflow-hidden rounded-2xl bg-white text-left text-sm shadow-sm">
           <thead className="bg-primary text-white">
             <tr>
@@ -109,7 +167,16 @@ export function HomeworkBoard() {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t">
+              <tr
+                key={r.id}
+                className="cursor-pointer border-t hover:bg-slate-50"
+                onClick={() => {
+                  setSelected(r);
+                  setEditTitle(r.title);
+                  setEditBody(r.body);
+                  setEditDue(r.dueDate);
+                }}
+              >
                 <td className="px-4 py-2">{r.title}</td>
                 <td className="px-4 py-2">{r.dueDate}</td>
                 <td className="px-4 py-2">{r.label}</td>
@@ -118,7 +185,33 @@ export function HomeworkBoard() {
             ))}
           </tbody>
         </table>
-      )}
+      ) : null}
+
+      {selected ? (
+        <div className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
+          <p className="font-display text-lg text-primary">Homework detail</p>
+          {canCreate ? (
+            <div className="mt-4 grid gap-3">
+              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+              <Input type="date" value={editDue} onChange={(e) => setEditDue(e.target.value)} />
+              <Input value={editBody} onChange={(e) => setEditBody(e.target.value)} />
+              <div className="flex gap-2">
+                <Button onClick={() => void saveEdit()}>Save</Button>
+                <Button variant="secondary" onClick={() => setSelected(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 text-sm">
+              <p>{selected.body}</p>
+              <Button className="mt-4" variant="secondary" onClick={() => setSelected(null)}>
+                Close
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

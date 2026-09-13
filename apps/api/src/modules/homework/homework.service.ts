@@ -42,6 +42,20 @@ export class HomeworkService {
         viewerStudentId = me.id;
       } else if (!targetSection && acl.scopes.some((s) => s.type === "section")) {
         targetSection = acl.scopes.find((s) => s.type === "section")?.sectionId;
+      } else if (!targetSection && acl.scopes.some((s) => s.type === "children")) {
+        const linked = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+          include: { student: true },
+        });
+        const sectionIds = [...new Set(linked.map((l) => l.student.sectionId))];
+        if (sectionIds.length === 0) return [];
+        const rows = await tx.homework.findMany({
+          where: { schoolId: acl.schoolId, sectionId: { in: sectionIds } },
+          include: { section: { include: { class: true } }, completions: true },
+          orderBy: { dueDate: "asc" },
+          take: 200,
+        });
+        return rows.map((h) => toDto(h));
       }
 
       if (!targetSection) {
@@ -83,9 +97,10 @@ export class HomeworkService {
         include: { student: true },
       });
       const childInSection = linked.some((l) => l.student.sectionId === row.sectionId);
-      if (!me && !childInSection) {
-        this.policy.assertReadSection(acl, row.sectionId, row.classId);
-      }
+      this.policy.assertReadSection(acl, row.sectionId, row.classId, {
+        selfInSection: me?.sectionId === row.sectionId,
+        childInSection,
+      });
       return toDto(row, me?.id);
     });
   }
