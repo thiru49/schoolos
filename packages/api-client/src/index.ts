@@ -183,6 +183,10 @@ export function createApiClient(options: {
       }) => request<unknown>("/timetable", { method: "POST", body: JSON.stringify(body) }),
       publish: (sectionId: string) =>
         request<{ published: number }>("/timetable/publish", { method: "POST", body: JSON.stringify({ sectionId }) }),
+      update: (
+        id: string,
+        body: { subjectId?: string; teacherId?: string; weekday?: number; startTime?: string; endTime?: string },
+      ) => request<unknown>(`/timetable/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
       remove: (id: string) => request<{ deleted: boolean }>(`/timetable/${id}`, { method: "DELETE" }),
     },
     fees: {

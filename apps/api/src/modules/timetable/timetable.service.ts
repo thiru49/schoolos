@@ -1,9 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PERMISSIONS } from "@schoolos/permissions";
-import { subjectCreateSchema, timetablePeriodSchema, timetablePublishSchema } from "@schoolos/validation";
+import {
+  subjectCreateSchema,
+  timetablePeriodSchema,
+  timetablePeriodUpdateSchema,
+  timetablePublishSchema,
+} from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
+import { periodsOverlap } from "./timetable-overlap";
 import { TimetablePolicy } from "./timetable.policy";
 
 @Injectable()
@@ -29,12 +35,40 @@ export class TimetableService {
 
   list(acl: RequestAcl, sectionId?: string, weekday?: number, studentId?: string) {
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const publishedOnly =
+        !acl.permissions.includes(PERMISSIONS.TIMETABLE_WRITE) && !acl.roles.includes("teacher");
+
+      if (!sectionId && !studentId && acl.scopes.some((s) => s.type === "children")) {
+        const linked = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+          include: { student: true },
+        });
+        const sectionIds = [...new Set(linked.map((l) => l.student.sectionId))];
+        if (sectionIds.length === 0) return [];
+        const rows = await tx.timetablePeriod.findMany({
+          where: {
+            schoolId: acl.schoolId,
+            sectionId: { in: sectionIds },
+            ...(weekday ? { weekday } : {}),
+            ...(publishedOnly ? { published: true } : {}),
+          },
+          include: { subject: true, teacher: true, section: { include: { class: true } } },
+          orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+        });
+        return rows.map(toDto);
+      }
+
       const resolved = await this.resolveSection(tx, acl, sectionId, studentId);
       if (!resolved) return [];
-      const viaChildOrSelf = Boolean(studentId) || acl.scopes.some((s) => s.type === "self");
-      if (!viaChildOrSelf) this.policy.assertReadSection(acl, resolved.id, resolved.classId);
-      const publishedOnly = !acl.permissions.includes(PERMISSIONS.TIMETABLE_WRITE)
-        && !acl.roles.includes("teacher");
+      const me = await tx.student.findFirst({ where: { schoolId: acl.schoolId, userId: acl.userId } });
+      const linked = await tx.parentStudent.findMany({
+        where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+        include: { student: true },
+      });
+      this.policy.assertReadSection(acl, resolved.id, resolved.classId, {
+        selfInSection: me?.sectionId === resolved.id,
+        childInSection: linked.some((l) => l.student.sectionId === resolved.id),
+      });
       const rows = await tx.timetablePeriod.findMany({
         where: {
           schoolId: acl.schoolId,
@@ -58,6 +92,8 @@ export class TimetableService {
         where: { id: input.sectionId, classId: input.classId, schoolId: acl.schoolId },
       });
       if (!section) throw new BadRequestException("Section does not belong to this class");
+      await this.assertRefs(tx, acl.schoolId, input.subjectId, input.teacherId);
+      await this.assertNoOverlap(tx, acl.schoolId, input.sectionId, input.weekday, input.startTime, input.endTime);
       const period = await tx.timetablePeriod.create({
         data: {
           schoolId: acl.schoolId,
@@ -79,11 +115,52 @@ export class TimetableService {
     this.policy.assertWrite(acl);
     const input = timetablePublishSchema.parse(body);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const section = await tx.section.findFirst({
+        where: { id: input.sectionId, schoolId: acl.schoolId },
+      });
+      if (!section) throw new NotFoundException("Section not found");
       const result = await tx.timetablePeriod.updateMany({
         where: { schoolId: acl.schoolId, sectionId: input.sectionId },
         data: { published: true },
       });
       return { published: result.count };
+    });
+  }
+
+  updatePeriod(acl: RequestAcl, id: string, body: unknown) {
+    this.policy.assertWrite(acl);
+    const input = timetablePeriodUpdateSchema.parse(body);
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const existing = await tx.timetablePeriod.findFirst({ where: { id, schoolId: acl.schoolId } });
+      if (!existing) throw new NotFoundException("Period not found");
+      const startTime = input.startTime ?? existing.startTime;
+      const endTime = input.endTime ?? existing.endTime;
+      if (startTime >= endTime) throw new BadRequestException("startTime must be before endTime");
+      if (input.subjectId || input.teacherId) {
+        await this.assertRefs(tx, acl.schoolId, input.subjectId ?? existing.subjectId, input.teacherId ?? existing.teacherId);
+      }
+      await this.assertNoOverlap(
+        tx,
+        acl.schoolId,
+        existing.sectionId,
+        input.weekday ?? existing.weekday,
+        startTime,
+        endTime,
+        existing.id,
+      );
+      const period = await tx.timetablePeriod.update({
+        where: { id: existing.id },
+        data: {
+          subjectId: input.subjectId,
+          teacherId: input.teacherId,
+          weekday: input.weekday,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          published: false,
+        },
+        include: { subject: true, teacher: true, section: { include: { class: true } } },
+      });
+      return toDto(period);
     });
   }
 
@@ -95,6 +172,35 @@ export class TimetableService {
       await tx.timetablePeriod.delete({ where: { id: row.id } });
       return { deleted: true };
     });
+  }
+
+  private async assertRefs(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    subjectId: string,
+    teacherId: string,
+  ) {
+    const subject = await tx.subject.findFirst({ where: { id: subjectId, schoolId } });
+    if (!subject) throw new BadRequestException("Subject not found");
+    const teacher = await tx.teacher.findFirst({ where: { id: teacherId, schoolId } });
+    if (!teacher) throw new BadRequestException("Teacher not found");
+  }
+
+  private async assertNoOverlap(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    sectionId: string,
+    weekday: number,
+    startTime: string,
+    endTime: string,
+    exceptId?: string,
+  ) {
+    const rows = await tx.timetablePeriod.findMany({
+      where: { schoolId, sectionId, weekday, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    });
+    if (rows.some((r) => periodsOverlap(startTime, endTime, r.startTime, r.endTime))) {
+      throw new BadRequestException("Period overlaps an existing period");
+    }
   }
 
   private async resolveSection(

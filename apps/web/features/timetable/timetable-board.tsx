@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -9,6 +10,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
+import { PermissionDenied } from "../../components/states/permission-denied";
+import { Skeleton } from "../../components/ui/skeleton";
 
 const DAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -21,6 +24,8 @@ type Period = {
   published: boolean;
   subjectName: string;
   teacherName: string;
+  subjectId: string;
+  teacherId: string;
 };
 type Subject = { id: string; name: string };
 type Teacher = { id: string; fullName: string; employeeId: string };
@@ -33,23 +38,39 @@ export function TimetableBoard() {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [teacherId, setTeacherId] = useState("");
   const [weekday, setWeekday] = useState(1);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("09:45");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!sectionId) return;
+    setState("loading");
+    setMessage("");
     try {
-      setPeriods(await api().timetable.list({ sectionId }));
-      setError(null);
+      const list = await api().timetable.list({ sectionId });
+      setPeriods(list);
+      setState(list.length === 0 ? "empty" : "loaded");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load timetable");
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load timetable");
     }
-  }
+  }, [sectionId]);
 
   useEffect(() => {
     api()
@@ -58,7 +79,12 @@ export function TimetableBoard() {
         setSections(list);
         if (list[0]) setSectionId(list[0].id);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) {
+          setState("denied");
+          setMessage(e.message);
+        }
+      });
     api()
       .subjects.list()
       .then((list) => {
@@ -77,9 +103,13 @@ export function TimetableBoard() {
 
   useEffect(() => {
     void load();
-  }, [sectionId]);
+  }, [load]);
 
   const section = sections.find((s) => s.id === sectionId);
+
+  if (state === "denied") {
+    return <PermissionDenied detail={message || "You cannot view this timetable."} />;
+  }
 
   return (
     <div>
@@ -139,23 +169,35 @@ export function TimetableBoard() {
               onClick={async () => {
                 if (!section) return;
                 try {
-                  await api().timetable.create({
-                    classId: section.classId,
-                    sectionId: section.id,
-                    subjectId,
-                    teacherId,
-                    weekday,
-                    startTime,
-                    endTime,
-                  });
-                  toast.success("Period saved");
+                  if (editingId) {
+                    await api().timetable.update(editingId, {
+                      subjectId,
+                      teacherId,
+                      weekday,
+                      startTime,
+                      endTime,
+                    });
+                    toast.success("Period updated");
+                    setEditingId(null);
+                  } else {
+                    await api().timetable.create({
+                      classId: section.classId,
+                      sectionId: section.id,
+                      subjectId,
+                      teacherId,
+                      weekday,
+                      startTime,
+                      endTime,
+                    });
+                    toast.success("Period saved");
+                  }
                   await load();
                 } catch (e) {
                   toast.error(e instanceof Error ? e.message : "Save failed");
                 }
               }}
             >
-              Add period
+              {editingId ? "Update period" : "Add period"}
             </Button>
           </div>
           <Button
@@ -174,12 +216,23 @@ export function TimetableBoard() {
           </Button>
         </div>
       ) : null}
-      {error ? <div className="mt-6"><ErrorState message={error} onRetry={() => void load()} /></div> : null}
-      {periods.length === 0 && !error ? (
+
+      {state === "loading" ? (
+        <div className="mt-6">
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : null}
+      {state === "offline" || state === "error" ? (
+        <div className="mt-6">
+          <ErrorState message={message} onRetry={() => void load()} />
+        </div>
+      ) : null}
+      {state === "empty" ? (
         <div className="mt-6">
           <EmptyState title="No periods" detail="No timetable rows for this section." />
         </div>
-      ) : (
+      ) : null}
+      {state === "loaded" ? (
         <table className="mt-6 w-full overflow-hidden rounded-2xl bg-white text-left text-sm shadow-sm">
           <thead className="bg-primary text-white">
             <tr>
@@ -188,6 +241,7 @@ export function TimetableBoard() {
               <th className="px-4 py-2">Subject</th>
               <th className="px-4 py-2">Teacher</th>
               <th className="px-4 py-2">Status</th>
+              {canWrite ? <th className="px-4 py-2">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -200,11 +254,46 @@ export function TimetableBoard() {
                 <td className="px-4 py-2">{p.subjectName}</td>
                 <td className="px-4 py-2">{p.teacherName}</td>
                 <td className="px-4 py-2">{p.published ? "Published" : "Draft"}</td>
+                {canWrite ? (
+                  <td className="px-4 py-2">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingId(p.id);
+                          setWeekday(p.weekday);
+                          setStartTime(p.startTime);
+                          setEndTime(p.endTime);
+                          setSubjectId(p.subjectId);
+                          setTeacherId(p.teacherId);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          try {
+                            await api().timetable.remove(p.id);
+                            toast.success("Period deleted");
+                            await load();
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "Delete failed");
+                          }
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+      ) : null}
     </div>
   );
 }

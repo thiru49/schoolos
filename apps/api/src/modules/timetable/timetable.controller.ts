@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { PermissionGuard } from "../../common/guards/permission.guard";
@@ -45,6 +45,12 @@ export class TimetableController {
   @RequirePermission(PERMISSIONS.TIMETABLE_WRITE)
   publish(@CurrentUser() acl: RequestAcl, @Body() body: unknown) {
     return this.timetable.publish(acl, body);
+  }
+
+  @Patch("timetable/:id")
+  @RequirePermission(PERMISSIONS.TIMETABLE_WRITE)
+  update(@CurrentUser() acl: RequestAcl, @Param("id") id: string, @Body() body: unknown) {
+    return this.timetable.updatePeriod(acl, id, body);
   }
 
   @Delete("timetable/:id")
