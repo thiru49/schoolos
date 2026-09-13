@@ -6,9 +6,23 @@ import type {
   PutAttendanceRequest,
   TokenPair,
 } from "@schoolos/types";
-import type { NoticeTargetRole } from "@schoolos/validation";
+import type {
+  NoticeTargetRole,
+  FeeCollectionReportQuery,
+  PaymentReportQuery,
+  StudentListReportQuery,
+  TeacherWorkloadReportQuery,
+  ProgressReportQuery,
+} from "@schoolos/validation";
 
-export type { NoticeTargetRole };
+export type {
+  NoticeTargetRole,
+  FeeCollectionReportQuery,
+  PaymentReportQuery,
+  StudentListReportQuery,
+  TeacherWorkloadReportQuery,
+  ProgressReportQuery,
+};
 
 export class ApiError extends Error {
   constructor(
@@ -586,6 +600,218 @@ export function createApiClient(options: {
         }),
       remove: (id: string) =>
         request<{ deleted: boolean }>(`/holidays/${id}`, { method: "DELETE" }),
+    },
+    reports: {
+      available: () =>
+        request<{
+          reports: {
+            code: string;
+            name: string;
+            description: string;
+            permission: string;
+          }[];
+        }>("/reports/available"),
+      feeCollection: (query?: FeeCollectionReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        const qs = q.toString();
+        return request<{
+          summary: {
+            studentCount: number;
+            totalExpected: number;
+            totalCollected: number;
+            totalOutstanding: number;
+            collectionRate: number;
+          };
+          feeHeadsBreakdown: {
+            id: string;
+            name: string;
+            amountPerStudent: number;
+            totalExpected: number;
+            totalCollected: number;
+            totalOutstanding: number;
+          }[];
+          rows: {
+            studentId: string;
+            admissionNumber: string;
+            studentName: string;
+            className: string;
+            sectionName: string;
+            totalExpected: number;
+            totalPaid: number;
+            balanceDue: number;
+            status: string;
+          }[];
+        }>(`/reports/fees/collection${qs ? `?${qs}` : ""}`);
+      },
+      exportFeeCollectionUrl: (query?: FeeCollectionReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        const qs = q.toString();
+        return `/reports/fees/collection/export${qs ? `?${qs}` : ""}`;
+      },
+      payments: (query?: PaymentReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.from) q.set("from", query.from);
+        if (query?.to) q.set("to", query.to);
+        if (query?.method) q.set("method", query.method);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        const qs = q.toString();
+        return request<{
+          summary: {
+            transactionCount: number;
+            totalAmount: number;
+            cashTotal: number;
+            upiTotal: number;
+            bankTotal: number;
+            from: string | null;
+            to: string | null;
+          };
+          transactions: {
+            id: string;
+            receiptNumber: string;
+            date: string;
+            createdAt: string;
+            studentId: string;
+            admissionNumber: string;
+            studentName: string;
+            className: string;
+            sectionName: string;
+            feeHeadName: string;
+            amount: number;
+            method: string;
+            note: string | null;
+            recordedByName: string;
+          }[];
+        }>(`/reports/fees/payments${qs ? `?${qs}` : ""}`);
+      },
+      exportPaymentsUrl: (query?: PaymentReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.from) q.set("from", query.from);
+        if (query?.to) q.set("to", query.to);
+        if (query?.method) q.set("method", query.method);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        const qs = q.toString();
+        return `/reports/fees/payments/export${qs ? `?${qs}` : ""}`;
+      },
+      students: (query?: StudentListReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.status) q.set("status", query.status);
+        const qs = q.toString();
+        return request<{
+          summary: {
+            totalStudents: number;
+            activeCount: number;
+            inactiveCount: number;
+          };
+          students: {
+            id: string;
+            admissionNumber: string;
+            fullName: string;
+            className: string;
+            sectionName: string;
+            status: string;
+            parentName: string | null;
+            parentContact: string | null;
+          }[];
+        }>(`/reports/students${qs ? `?${qs}` : ""}`);
+      },
+      exportStudentsUrl: (query?: StudentListReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.status) q.set("status", query.status);
+        const qs = q.toString();
+        return `/reports/students/export${qs ? `?${qs}` : ""}`;
+      },
+      teacherWorkload: (query?: TeacherWorkloadReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.teacherId) q.set("teacherId", query.teacherId);
+        const qs = q.toString();
+        return request<{
+          summary: {
+            totalTeachers: number;
+            totalPeriodsScheduled: number;
+            averagePeriodsPerTeacher: number;
+          };
+          teachers: {
+            id: string;
+            employeeId: string;
+            fullName: string;
+            assignedSections: string[];
+            assignedSubjects: string[];
+            weeklyPeriodsCount: number;
+          }[];
+        }>(`/reports/teachers/workload${qs ? `?${qs}` : ""}`);
+      },
+      exportTeacherWorkloadUrl: (query?: TeacherWorkloadReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.teacherId) q.set("teacherId", query.teacherId);
+        const qs = q.toString();
+        return `/reports/teachers/workload/export${qs ? `?${qs}` : ""}`;
+      },
+      progress: (query?: ProgressReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.examId) q.set("examId", query.examId);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        const qs = q.toString();
+        return request<{
+          summary: {
+            examCount: number;
+            studentCount: number;
+            averagePercentage: number;
+          };
+          subjects: string[];
+          rows: {
+            studentId: string;
+            admissionNumber: string;
+            studentName: string;
+            className: string;
+            sectionName: string;
+            scores: Record<string, number | null>;
+            totalScore: number;
+            maxScore: number;
+            percentage: number;
+          }[];
+        }>(`/reports/progress${qs ? `?${qs}` : ""}`);
+      },
+      exportProgressUrl: (query?: ProgressReportQuery) => {
+        const q = new URLSearchParams();
+        if (query?.classId) q.set("classId", query.classId);
+        if (query?.sectionId) q.set("sectionId", query.sectionId);
+        if (query?.examId) q.set("examId", query.examId);
+        if (query?.studentId) q.set("studentId", query.studentId);
+        const qs = q.toString();
+        return `/reports/progress/export${qs ? `?${qs}` : ""}`;
+      },
+      attendance: (sectionId: string, from: string, to: string) =>
+        request<{
+          sectionId: string;
+          label: string;
+          from: string;
+          to: string;
+          rows: {
+            studentId: string;
+            fullName: string;
+            admissionNumber: string;
+            P: number;
+            A: number;
+            L: number;
+            H: number;
+          }[];
+        }>(`/reports/attendance?sectionId=${sectionId}&from=${from}&to=${to}`),
+      exportAttendanceUrl: (sectionId: string, from: string, to: string) =>
+        `/reports/attendance/export?sectionId=${sectionId}&from=${from}&to=${to}`,
     },
     setTokens,
   };

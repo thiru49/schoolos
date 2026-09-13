@@ -291,6 +291,42 @@ export const holidayCreateSchema = z.object({
   academicYearId: z.string().uuid().optional(),
 });
 
+export const feeCollectionReportQuerySchema = z.object({
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+});
+
+export const paymentReportQuerySchema = z
+  .object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    method: z.enum(["cash", "upi", "bank"]).optional(),
+    studentId: z.string().uuid().optional(),
+    classId: z.string().uuid().optional(),
+    sectionId: z.string().uuid().optional(),
+  })
+  .refine((data) => !data.from || !data.to || data.from <= data.to, {
+    message: "'from' date must be before or equal to 'to' date",
+    path: ["to"],
+  });
+
+export const studentListReportQuerySchema = z.object({
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+});
+
+export const teacherWorkloadReportQuerySchema = z.object({
+  teacherId: z.string().uuid().optional(),
+});
+
+export const progressReportQuerySchema = z.object({
+  classId: z.string().uuid().optional(),
+  sectionId: z.string().uuid().optional(),
+  examId: z.string().uuid().optional(),
+  studentId: z.string().uuid().optional(),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type MarkAttendanceInput = z.infer<typeof markAttendanceSchema>;
 export type NoticeCreateInput = z.infer<typeof noticeCreateSchema>;
@@ -299,5 +335,10 @@ export type EventCreateInput = z.infer<typeof eventCreateSchema>;
 export type EventUpdateInput = z.infer<typeof eventUpdateSchema>;
 export type EventQueryInput = z.infer<typeof eventQuerySchema>;
 export type HolidayCreateInput = z.infer<typeof holidayCreateSchema>;
+export type FeeCollectionReportQuery = z.infer<typeof feeCollectionReportQuerySchema>;
+export type PaymentReportQuery = z.infer<typeof paymentReportQuerySchema>;
+export type StudentListReportQuery = z.infer<typeof studentListReportQuerySchema>;
+export type TeacherWorkloadReportQuery = z.infer<typeof teacherWorkloadReportQuerySchema>;
+export type ProgressReportQuery = z.infer<typeof progressReportQuerySchema>;
 
 
