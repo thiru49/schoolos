@@ -30,6 +30,12 @@ export class FeesController {
     return this.fees.list(acl, studentId);
   }
 
+  @Get("fees/summary")
+  @RequirePermission(PERMISSIONS.FEES_READ)
+  summary(@CurrentUser() acl: RequestAcl, @Query("studentId") studentId?: string) {
+    return this.fees.summary(acl, studentId);
+  }
+
   @Get("fees/preview-number")
   @RequirePermission(PERMISSIONS.FEES_RECORD)
   preview(@CurrentUser() acl: RequestAcl) {
