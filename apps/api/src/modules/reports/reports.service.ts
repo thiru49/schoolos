@@ -61,7 +61,7 @@ export class ReportsService {
         permission: PERMISSIONS.REPORTS_PROGRESS,
       });
 
-      if (this.policy.hasSchoolScope(acl)) {
+      if (this.policy.canAccessTeacherWorkload(acl)) {
         list.push({
           code: "teachers",
           name: "Teacher Workload",
