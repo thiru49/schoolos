@@ -28,6 +28,17 @@ describe("ExamsPolicy", () => {
     expect(() => policy.assertPublish(teacher())).toThrow(ForbiddenException);
   });
 
+  it("denies a student drafting marks", () => {
+    const student: RequestAcl = {
+      userId: "st1",
+      schoolId: "s1",
+      roles: ["student"],
+      permissions: [PERMISSIONS.EXAMS_READ, PERMISSIONS.MARKS_READ],
+      scopes: [{ type: "self", studentId: "arun" }],
+    };
+    expect(() => policy.assertDraftSection(student, "sec-8a", "c8")).toThrow(ForbiddenException);
+  });
+
   it("allows a parent to read a linked child's section", () => {
     const parent: RequestAcl = {
       userId: "p1",
