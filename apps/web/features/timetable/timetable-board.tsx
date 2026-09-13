@@ -1,77 +1,90 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  BookOpen,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Download,
+  GraduationCap,
+  Plus,
+  Printer,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
+import { Card } from "../../components/ui/card";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
 import { Skeleton } from "../../components/ui/skeleton";
-
-const DAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-type Section = { id: string; classId: string; label: string };
-type Period = {
-  id: string;
-  weekday: number;
-  startTime: string;
-  endTime: string;
-  published: boolean;
-  subjectName: string;
-  teacherName: string;
-  subjectId: string;
-  teacherId: string;
-};
-type Subject = { id: string; name: string };
-type Teacher = { id: string; fullName: string; employeeId: string };
+import { TimetableGrid } from "./timetable-grid";
+import { TimetablePeriodDialog } from "./timetable-period-dialog";
+import { TimetablePrint } from "./timetable-print";
+import {
+  DEFAULT_BELL_SLOTS,
+  type BellSlot,
+  type Period,
+  type Section,
+  type Subject,
+  type Teacher,
+} from "./timetable-types";
 
 export function TimetableBoard() {
-  const { acl } = useAppBranding();
+  const { branding, acl } = useAppBranding();
   const canWrite = acl.permissions.includes(PERMISSIONS.TIMETABLE_WRITE);
+
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionId, setSectionId] = useState("");
   const [periods, setPeriods] = useState<Period[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
-  const [message, setMessage] = useState("");
-  const [subjectName, setSubjectName] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const [teacherId, setTeacherId] = useState("");
-  const [weekday, setWeekday] = useState(1);
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("09:45");
-  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // Page state
+  const [state, setState] = useState<
+    "loading" | "loaded" | "empty" | "error" | "denied" | "offline"
+  >("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Dialog state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogInitialData, setDialogInitialData] = useState<Partial<Period> | null>(null);
+  const [isEditingPeriod, setIsEditingPeriod] = useState(false);
+
+  // Load section periods
+  const loadPeriods = useCallback(async () => {
     if (!sectionId) return;
     setState("loading");
-    setMessage("");
+    setErrorMessage("");
     try {
       const list = await api().timetable.list({ sectionId });
-      setPeriods(list);
+      setPeriods(list as Period[]);
       setState(list.length === 0 ? "empty" : "loaded");
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) {
         setState("denied");
-        setMessage(e.message);
+        setErrorMessage(e.message);
         return;
       }
       if (e instanceof TypeError) {
         setState("offline");
-        setMessage("You appear to be offline.");
+        setErrorMessage("You appear to be offline. Please check your internet connection.");
         return;
       }
       setState("error");
-      setMessage(e instanceof Error ? e.message : "Failed to load timetable");
+      setErrorMessage(e instanceof Error ? e.message : "Failed to load timetable");
     }
   }, [sectionId]);
 
+  // Initial load: sections, subjects, teachers
   useEffect(() => {
     api()
       .academics.sections()
@@ -82,217 +95,429 @@ export function TimetableBoard() {
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 403) {
           setState("denied");
-          setMessage(e.message);
+          setErrorMessage(e.message);
         }
       });
+
     api()
       .subjects.list()
-      .then((list) => {
-        setSubjects(list);
-        if (list[0]) setSubjectId(list[0].id);
-      })
+      .then((list) => setSubjects(list))
       .catch(() => undefined);
+
     api()
       .teachers.list()
-      .then((list) => {
-        setTeachers(list);
-        if (list[0]) setTeacherId(list[0].id);
-      })
+      .then((list) => setTeachers(list))
       .catch(() => undefined);
   }, []);
 
+  // Reload periods whenever sectionId changes
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadPeriods();
+  }, [loadPeriods]);
 
-  const section = sections.find((s) => s.id === sectionId);
+  const activeSection = useMemo(
+    () => sections.find((s) => s.id === sectionId),
+    [sections, sectionId],
+  );
+
+  // Metrics
+  const draftCount = useMemo(() => periods.filter((p) => !p.published).length, [periods]);
+  const totalPeriods = periods.length;
+  const weeklyMinutes = useMemo(() => {
+    return periods.reduce((acc, p) => {
+      const [startH, startM] = p.startTime.split(":").map(Number);
+      const [endH, endM] = p.endTime.split(":").map(Number);
+      const diff = (endH * 60 + endM) - (startH * 60 + startM);
+      return acc + (diff > 0 ? diff : 45);
+    }, 0);
+  }, [periods]);
+  const weeklyHours = (weeklyMinutes / 60).toFixed(1);
+
+  // Consolidated Bell Slots for Print & Matrix
+  const slots: BellSlot[] = useMemo(() => {
+    const slotMap = new Map<string, BellSlot>();
+    for (const d of DEFAULT_BELL_SLOTS) {
+      slotMap.set(d.startTime, d);
+    }
+    for (const p of periods) {
+      if (!slotMap.has(p.startTime)) {
+        slotMap.set(p.startTime, {
+          slotNumber: 99,
+          label: `Slot ${p.startTime}`,
+          startTime: p.startTime,
+          endTime: p.endTime,
+        });
+      }
+    }
+    return Array.from(slotMap.values()).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [periods]);
+
+  // Actions
+  const handlePublishSection = async () => {
+    if (!sectionId) return;
+    setIsPublishing(true);
+    try {
+      const res = await api().timetable.publish(sectionId);
+      toast.success(
+        res.published > 0
+          ? `Successfully published ${res.published} periods for Section ${activeSection?.label ?? ""}`
+          : "All periods in this section are now published.",
+      );
+      await loadPeriods();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to publish timetable");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleSavePeriod = async (data: {
+    subjectId: string;
+    teacherId: string;
+    weekday: number;
+    startTime: string;
+    endTime: string;
+  }) => {
+    if (!activeSection) throw new Error("No section selected");
+
+    if (isEditingPeriod && dialogInitialData?.id) {
+      await api().timetable.update(dialogInitialData.id, data);
+      toast.success("Period updated (saved as draft until published)");
+    } else {
+      await api().timetable.create({
+        classId: activeSection.classId,
+        sectionId: activeSection.id,
+        ...data,
+      });
+      toast.success("New period scheduled (saved as draft until published)");
+    }
+    await loadPeriods();
+  };
+
+  const handleDeletePeriod = async (id: string) => {
+    try {
+      await api().timetable.remove(id);
+      toast.success("Period removed from timetable");
+      await loadPeriods();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete period");
+    }
+  };
+
+  const handleCreateSubject = async (name: string) => {
+    const s = await api().subjects.create(name);
+    setSubjects((prev) => [...prev, s]);
+    return s;
+  };
+
+  const openAddDialogForSlot = (weekday: number, startTime: string, endTime: string) => {
+    setIsEditingPeriod(false);
+    setDialogInitialData({ weekday, startTime, endTime });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (period: Period) => {
+    setIsEditingPeriod(true);
+    setDialogInitialData(period);
+    setIsDialogOpen(true);
+  };
 
   if (state === "denied") {
-    return <PermissionDenied detail={message || "You cannot view this timetable."} />;
+    return <PermissionDenied detail={errorMessage || "You do not have permission to view timetables."} />;
   }
 
   return (
-    <div>
-      <select className="h-10 rounded-lg border px-3 text-sm" value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
-        {sections.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-      {canWrite ? (
-        <div className="mt-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
-          <div className="flex gap-2">
-            <Input placeholder="New subject" value={subjectName} onChange={(e) => setSubjectName(e.target.value)} />
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                try {
-                  const s = await api().subjects.create(subjectName);
-                  setSubjects((prev) => [...prev, s]);
-                  setSubjectId(s.id);
-                  setSubjectName("");
-                  toast.success("Subject added");
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Subject failed");
-                }
-              }}
+    <div className="space-y-6">
+      {/* Top Controls Bar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Section Selector */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Class Section:
+            </span>
+            <select
+              aria-label="Class Section"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-800 shadow-2xs transition hover:border-slate-300 focus:border-primary focus:outline-none"
+              value={sectionId}
+              onChange={(e) => setSectionId(e.target.value)}
+              disabled={sections.length === 0}
             >
-              Add subject
-            </Button>
-          </div>
-          <div className="grid gap-2 md:grid-cols-6">
-            <select className="h-10 rounded-lg border px-3 text-sm" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-              {DAYS.slice(1).map((d, i) => (
-                <option key={d} value={i + 1}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <Input value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-            <Input value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-            <select className="h-10 rounded-lg border px-3 text-sm" value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-              {subjects.map((s) => (
+              {sections.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
+                  Section {s.label}
                 </option>
               ))}
             </select>
-            <select className="h-10 rounded-lg border px-3 text-sm" value={teacherId} onChange={(e) => setTeacherId(e.target.value)}>
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.fullName}
-                </option>
-              ))}
-            </select>
-            <Button
-              onClick={async () => {
-                if (!section) return;
-                try {
-                  if (editingId) {
-                    await api().timetable.update(editingId, {
-                      subjectId,
-                      teacherId,
-                      weekday,
-                      startTime,
-                      endTime,
-                    });
-                    toast.success("Period updated");
-                    setEditingId(null);
-                  } else {
-                    await api().timetable.create({
-                      classId: section.classId,
-                      sectionId: section.id,
-                      subjectId,
-                      teacherId,
-                      weekday,
-                      startTime,
-                      endTime,
-                    });
-                    toast.success("Period saved");
-                  }
-                  await load();
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Save failed");
-                }
-              }}
-            >
-              {editingId ? "Update period" : "Add period"}
-            </Button>
           </div>
+
+          {/* Section Status Badge */}
+          {activeSection && state !== "loading" ? (
+            draftCount > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 shadow-2xs">
+                <AlertCircle size={13} className="text-amber-600" />
+                {draftCount} Draft {draftCount === 1 ? "Change" : "Changes"}
+              </span>
+            ) : totalPeriods > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-2xs">
+                <CheckCircle2 size={13} className="text-emerald-600" />
+                All Published
+              </span>
+            ) : null
+          ) : null}
+        </div>
+
+        {/* Global Timetable Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Print Timetable Action */}
           <Button
             variant="secondary"
-            onClick={async () => {
-              try {
-                const r = await api().timetable.publish(sectionId);
-                toast.success(`Published ${r.published} periods`);
-                await load();
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Publish failed");
-              }
-            }}
+            size="sm"
+            onClick={() => window.print()}
+            disabled={periods.length === 0}
+            className="flex items-center gap-1.5"
           >
-            Publish section timetable
+            <Printer size={14} />
+            Print Timetable
+          </Button>
+
+          {/* Publish Action (for admins) */}
+          {canWrite ? (
+            <Button
+              size="sm"
+              variant={draftCount > 0 ? "primary" : "secondary"}
+              onClick={handlePublishSection}
+              disabled={isPublishing || draftCount === 0}
+              className="flex items-center gap-1.5 font-semibold"
+            >
+              <Sparkles size={14} />
+              {isPublishing
+                ? "Publishing..."
+                : draftCount > 0
+                ? `Publish Section (${draftCount})`
+                : "Timetable Published"}
+            </Button>
+          ) : null}
+
+          {/* Add Period Button (for admins) */}
+          {canWrite ? (
+            <Button
+              size="sm"
+              onClick={() => {
+                setIsEditingPeriod(false);
+                setDialogInitialData(null);
+                setIsDialogOpen(true);
+              }}
+              className="flex items-center gap-1.5"
+            >
+              <Plus size={14} />
+              Add Period
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="flex items-center gap-3 p-4">
+          <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+            <BookOpen size={20} />
+          </div>
+          <div>
+            <div className="font-display text-xl font-bold text-slate-900">
+              {state === "loading" ? "..." : totalPeriods}
+            </div>
+            <div className="text-xs font-medium text-slate-500">Scheduled Periods</div>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-3 p-4">
+          <div className="rounded-xl bg-emerald-500/10 p-2.5 text-emerald-600">
+            <Clock size={20} />
+          </div>
+          <div>
+            <div className="font-display text-xl font-bold text-slate-900">
+              {state === "loading" ? "..." : `${weeklyHours}h`}
+            </div>
+            <div className="text-xs font-medium text-slate-500">Hours / Week</div>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-3 p-4">
+          <div className="rounded-xl bg-sky-500/10 p-2.5 text-sky-600">
+            <GraduationCap size={20} />
+          </div>
+          <div>
+            <div className="font-display text-xl font-bold text-slate-900">
+              {subjects.length}
+            </div>
+            <div className="text-xs font-medium text-slate-500">Active Subjects</div>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-3 p-4">
+          <div className="rounded-xl bg-amber-500/10 p-2.5 text-amber-600">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="font-display text-xl font-bold text-slate-900">
+              {teachers.length}
+            </div>
+            <div className="text-xs font-medium text-slate-500">Teachers Assigned</div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Draft Warning Banner */}
+      {draftCount > 0 && canWrite && state !== "loading" ? (
+        <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/80 p-4 shadow-xs sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={20} className="mt-0.5 shrink-0 text-amber-600" />
+            <div>
+              <h3 className="font-display text-sm font-bold text-amber-950">
+                You have {draftCount} unpublished {draftCount === 1 ? "change" : "changes"} in Section {activeSection?.label}
+              </h3>
+              <p className="text-xs text-amber-800/90">
+                Draft periods are only visible to academic staff. Students and parents will not see these changes until published.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handlePublishSection}
+            disabled={isPublishing}
+            className="shrink-0 bg-amber-800 text-white hover:bg-amber-900"
+          >
+            {isPublishing ? "Publishing..." : `Publish ${draftCount} Changes Now`}
           </Button>
         </div>
       ) : null}
 
+      {/* State Renderings */}
       {state === "loading" ? (
-        <div className="mt-6">
-          <Skeleton className="h-24 w-full" />
+        /* Structural Weekly Grid Skeleton */
+        <div className="space-y-4">
+          <div className="flex justify-between">
+            <Skeleton className="h-6 w-48 rounded-lg" />
+            <Skeleton className="h-8 w-36 rounded-lg" />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="grid grid-cols-7 gap-3">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-lg" />
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-7 gap-3">
+              {Array.from({ length: 28 }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-xl" />
+              ))}
+            </div>
+          </div>
         </div>
       ) : null}
-      {state === "offline" || state === "error" ? (
-        <div className="mt-6">
-          <ErrorState message={message} onRetry={() => void load()} />
+
+      {state === "offline" ? (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+          <ErrorState
+            message="You appear to be offline. Please check your network connection and try again."
+            onRetry={() => void loadPeriods()}
+          />
         </div>
       ) : null}
-      {state === "empty" ? (
-        <div className="mt-6">
-          <EmptyState title="No periods" detail="No timetable rows for this section." />
+
+      {state === "error" ? (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+          <ErrorState message={errorMessage} onRetry={() => void loadPeriods()} />
         </div>
       ) : null}
+
+      {state === "empty" && sections.length === 0 ? (
+        <EmptyState
+          title="No Classes or Sections Found"
+          detail="Configure classes and sections in Academics before creating a timetable schedule."
+        />
+      ) : null}
+
+      {state === "empty" && sections.length > 0 && subjects.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+          <EmptyState
+            title="No Subjects Configured"
+            detail="You need to add at least one subject to begin scheduling timetable periods."
+          />
+          {canWrite ? (
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setIsEditingPeriod(false);
+                setDialogInitialData(null);
+                setIsDialogOpen(true);
+              }}
+            >
+              <Plus size={16} className="mr-1.5" />
+              Add Subject & Period
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {state === "empty" && sections.length > 0 && subjects.length > 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+          <EmptyState
+            title="No Periods Scheduled"
+            detail={`There are no timetable periods scheduled for Section ${activeSection?.label ?? ""}.`}
+          />
+          {canWrite ? (
+            <Button
+              className="mt-4"
+              onClick={() => {
+                setIsEditingPeriod(false);
+                setDialogInitialData(null);
+                setIsDialogOpen(true);
+              }}
+            >
+              <Plus size={16} className="mr-1.5" />
+              Schedule First Period
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       {state === "loaded" ? (
-        <table className="mt-6 w-full overflow-hidden rounded-2xl bg-white text-left text-sm shadow-sm">
-          <thead className="bg-primary text-white">
-            <tr>
-              <th className="px-4 py-2">Day</th>
-              <th className="px-4 py-2">Time</th>
-              <th className="px-4 py-2">Subject</th>
-              <th className="px-4 py-2">Teacher</th>
-              <th className="px-4 py-2">Status</th>
-              {canWrite ? <th className="px-4 py-2">Actions</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {periods.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td className="px-4 py-2">{DAYS[p.weekday]}</td>
-                <td className="px-4 py-2">
-                  {p.startTime}–{p.endTime}
-                </td>
-                <td className="px-4 py-2">{p.subjectName}</td>
-                <td className="px-4 py-2">{p.teacherName}</td>
-                <td className="px-4 py-2">{p.published ? "Published" : "Draft"}</td>
-                {canWrite ? (
-                  <td className="px-4 py-2">
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingId(p.id);
-                          setWeekday(p.weekday);
-                          setStartTime(p.startTime);
-                          setEndTime(p.endTime);
-                          setSubjectId(p.subjectId);
-                          setTeacherId(p.teacherId);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={async () => {
-                          try {
-                            await api().timetable.remove(p.id);
-                            toast.success("Period deleted");
-                            await load();
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Delete failed");
-                          }
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TimetableGrid
+          periods={periods}
+          canWrite={canWrite}
+          onEditPeriod={openEditDialog}
+          onDeletePeriod={handleDeletePeriod}
+          onAddPeriodSlot={openAddDialogForSlot}
+        />
+      ) : null}
+
+      {/* Period Create / Edit Dialog */}
+      <TimetablePeriodDialog
+        isOpen={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onSave={handleSavePeriod}
+        initialData={dialogInitialData}
+        subjects={subjects}
+        teachers={teachers}
+        onCreateSubject={canWrite ? handleCreateSubject : undefined}
+        allPeriods={periods}
+        isEditing={isEditingPeriod}
+        onDelete={
+          isEditingPeriod && dialogInitialData?.id
+            ? () => handleDeletePeriod(dialogInitialData.id!)
+            : undefined
+        }
+      />
+
+      {/* Hidden Printable Document for window.print() */}
+      {activeSection ? (
+        <TimetablePrint
+          schoolName={branding.schoolName}
+          section={activeSection}
+          periods={periods}
+          slots={slots}
+        />
       ) : null}
     </div>
   );
