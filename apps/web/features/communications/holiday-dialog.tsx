@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Sun } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sun, Info } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import { Select } from "../../components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +13,6 @@ import {
   DialogClose,
   DialogFooter,
 } from "../../components/ui/dialog";
-import { useAppBranding } from "../../lib/branding-context";
 import { todayIso } from "../../lib/utils";
 
 type HolidayDialogProps = {
@@ -32,21 +30,8 @@ export function HolidayDialog({
   onClose,
   onSave,
 }: HolidayDialogProps) {
-  const { branding } = useAppBranding();
-  const activeYearLabel = useMemo(() => {
-    if (branding.receiptPrefix && branding.receiptPrefix.includes("/")) {
-      const segment = branding.receiptPrefix.split("/")[1]?.trim();
-      if (segment) {
-        return /^\d{2}-\d{2}$/.test(segment) ? `20${segment}` : segment;
-      }
-    }
-    return "2026-27";
-  }, [branding.receiptPrefix]);
-
   const [name, setName] = useState("");
   const [date, setDate] = useState(todayIso());
-  const [yearOption, setYearOption] = useState<string>("auto");
-  const [customYearId, setCustomYearId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -54,8 +39,6 @@ export function HolidayDialog({
     if (isOpen) {
       setName("");
       setDate(todayIso());
-      setYearOption("auto");
-      setCustomYearId("");
       setError("");
     }
   }, [isOpen]);
@@ -74,17 +57,11 @@ export function HolidayDialog({
     setSaving(true);
     setError("");
 
-    // Optional academicYearId handling
-    let yearToSend: string | undefined = undefined;
-    if (yearOption === "custom" && customYearId.trim()) {
-      yearToSend = customYearId.trim();
-    }
-
     try {
+      // academicYearId is omitted so backend auto-resolves the active academic year
       await onSave({
         name: name.trim(),
         date,
-        ...(yearToSend ? { academicYearId: yearToSend } : {}),
       });
       onClose();
     } catch (err) {
@@ -138,33 +115,14 @@ export function HolidayDialog({
             />
           </div>
 
-          <div>
-            <label className="text-xs font-semibold text-slate-700">
-              Academic Year (Optional)
-            </label>
-            <Select
-              value={yearOption}
-              onChange={(e) => setYearOption(e.target.value)}
-              className="mt-1"
-            >
-              <option value="auto">
-                Active Year ({activeYearLabel}) — Auto-assigned
-              </option>
-              <option value="custom">Specific Academic Year ID</option>
-            </Select>
-            {yearOption === "custom" ? (
-              <div className="mt-2">
-                <Input
-                  placeholder="Enter Academic Year ID (UUID)"
-                  value={customYearId}
-                  onChange={(e) => setCustomYearId(e.target.value)}
-                  className="text-xs"
-                />
-              </div>
-            ) : null}
-            <p className="mt-1 text-[11px] text-slate-400">
-              When omitted, SchoolOS automatically associates this holiday with the active academic year ({activeYearLabel}).
-            </p>
+          <div className="flex items-start gap-2.5 rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-xs text-slate-600">
+            <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-primary">Academic Year Auto-resolution</p>
+              <p className="mt-0.5 text-slate-500">
+                The backend automatically links this holiday to the school&apos;s active academic year.
+              </p>
+            </div>
           </div>
 
           <DialogFooter>

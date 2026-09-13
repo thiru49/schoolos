@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { PERMISSIONS } from "@schoolos/permissions";
 
-console.log("Starting COM-002 Web Communications Unit & Component Logic Tests...");
+console.log("Starting COM-002 Web Communications Logic & Validation Tests...");
 
 // ============================================================================
-// 1. Sidebar Navigation & ACL Gating
+// 1. Sidebar Navigation & ACL Gating Logic
 // ============================================================================
 const NAV = [
   { href: "/notices", label: "Notices", permission: PERMISSIONS.NOTICES_READ },
@@ -36,10 +36,10 @@ assert.equal(eventsOnly[0]?.href, "/events");
 const fullStaff = filterSidebar([PERMISSIONS.NOTICES_READ, PERMISSIONS.EVENTS_READ]);
 assert.equal(fullStaff.length, 3, "Full permissions see all 3 links");
 
-console.log("✓ Sidebar navigation & ACL tests passed");
+console.log("✓ Sidebar navigation & ACL logic tests passed");
 
 // ============================================================================
-// 2. Permission-Based Rendering of Actions (Create / Edit / Delete / Publish)
+// 2. Permission-Based Action Logic (Create / Edit / Delete / Publish)
 // ============================================================================
 function getActionPermissions(permissions: string[]) {
   return {
@@ -82,7 +82,7 @@ assert.equal(parentAcl.events.showDeleteButton, false, "Parent cannot delete eve
 assert.equal(parentAcl.holidays.canRead, true);
 assert.equal(parentAcl.holidays.showAddButton, false, "Parent cannot add holiday");
 assert.equal(parentAcl.holidays.showDeleteButton, false, "Parent cannot delete holiday");
-assert.equal(parentAcl.holidays.hasEditAction, false, "Holiday edit action does not exist");
+assert.equal(parentAcl.holidays.hasEditAction, false, "Holiday edit action does not exist in COM-001/COM-002");
 
 // Admin / Staff with write permissions
 const adminAcl = getActionPermissions([
@@ -104,7 +104,7 @@ assert.equal(adminAcl.holidays.showAddButton, true);
 assert.equal(adminAcl.holidays.showDeleteButton, true);
 assert.equal(adminAcl.holidays.hasEditAction, false, "Holiday UI strictly omits edit action");
 
-console.log("✓ Permission-based action rendering tests passed");
+console.log("✓ Permission-based action logic tests passed");
 
 // ============================================================================
 // 3. Notice Draft State (must strictly use published === false)
@@ -131,7 +131,7 @@ assert.equal(isNoticeDraft({ published: false, publishedAt: null }), true);
 console.log("✓ Notice draft state semantics tests passed");
 
 // ============================================================================
-// 4. Event Start/End Date Validation
+// 4. Event Start/End Date Validation Logic
 // ============================================================================
 function validateEventForm(input: {
   title: string;
@@ -177,59 +177,41 @@ assert.equal(
 console.log("✓ Event start/end date validation tests passed");
 
 // ============================================================================
-// 5. Holiday Optional AcademicYearId Handling
+// 5. Holiday AcademicYearId Auto-Resolution & Payload Logic
 // ============================================================================
-function prepareHolidayPayload(name: string, date: string, yearOption: string, customYearId?: string) {
+function prepareHolidayPayload(name: string, date: string, academicYearId?: string) {
   if (!name.trim()) throw new Error("Holiday name is required.");
   if (!date) throw new Error("Holiday date is required.");
-
-  let academicYearId: string | undefined = undefined;
-  if (yearOption === "custom" && customYearId && customYearId.trim()) {
-    academicYearId = customYearId.trim();
-  }
 
   return {
     name: name.trim(),
     date,
-    ...(academicYearId ? { academicYearId } : {}),
+    ...(academicYearId && academicYearId.trim() ? { academicYearId: academicYearId.trim() } : {}),
   };
 }
 
-// 5a. Auto-assigned active year (omitted)
-const autoHoliday = prepareHolidayPayload("Diwali", "2026-11-08", "auto");
+// 5a. Active year auto-resolution path (academicYearId omitted)
+const autoHoliday = prepareHolidayPayload("Diwali", "2026-11-08");
 assert.equal(
   autoHoliday.academicYearId,
   undefined,
-  "academicYearId is omitted when auto-assigned so backend resolves active year"
+  "academicYearId is omitted so backend resolves active academic year automatically"
 );
 assert.equal(autoHoliday.name, "Diwali");
 assert.equal(autoHoliday.date, "2026-11-08");
 
-// 5b. Explicit custom academicYearId
-const customYearHoliday = prepareHolidayPayload(
-  "Pongal",
-  "2027-01-14",
-  "custom",
-  "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
-);
+// 5b. Empty string parameter also omits academicYearId
+const emptyYearHoliday = prepareHolidayPayload("Pongal", "2027-01-14", "");
 assert.equal(
-  customYearHoliday.academicYearId,
-  "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
-  "Explicit academicYearId is passed in payload"
-);
-
-// 5c. Custom selected but empty ID left blank -> falls back to undefined
-const fallbackHoliday = prepareHolidayPayload("Republic Day", "2027-01-26", "custom", "   ");
-assert.equal(
-  fallbackHoliday.academicYearId,
+  emptyYearHoliday.academicYearId,
   undefined,
-  "Empty custom ID cleanly omits academicYearId"
+  "Empty string academicYearId cleanly resolves to omitted"
 );
 
-console.log("✓ Holiday optional academicYearId handling tests passed");
+console.log("✓ Holiday academicYearId auto-resolution payload tests passed");
 
 // ============================================================================
-// 6. Notice Canonical Target Role Mapping
+// 6. Notice Canonical Target Role Mapping Logic
 // ============================================================================
 function canonicalNoticeRole(role: string): "student" | "parent" | "teacher" | null {
   if (role === "all" || role === "everyone" || !role) return null;
@@ -247,5 +229,5 @@ assert.equal(canonicalNoticeRole("teacher"), "teacher");
 console.log("✓ Notice canonical target role mapping tests passed");
 
 console.log("\n========================================================");
-console.log("ALL COM-002 WEB COMMUNICATIONS UNIT & COMPONENT TESTS PASSED (6/6)");
+console.log("ALL COM-002 WEB COMMUNICATIONS LOGIC & VALIDATION TESTS PASSED (6/6)");
 console.log("========================================================\n");

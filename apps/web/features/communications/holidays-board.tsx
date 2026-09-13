@@ -9,7 +9,6 @@ import {
   Search,
   Trash2,
   Calendar,
-  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -18,7 +17,6 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
-import { Select } from "../../components/ui/select";
 import {
   Table,
   TableHeader,
@@ -46,31 +44,19 @@ function formatHolidayDate(dateIso: string) {
 }
 
 export function HolidaysBoard() {
-  const { acl, branding } = useAppBranding();
+  const { acl } = useAppBranding();
   const canRead = acl.permissions.includes(PERMISSIONS.NOTICES_READ);
   const canManage = acl.permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE);
-
-  const activeYearLabel = useMemo(() => {
-    if (branding.receiptPrefix && branding.receiptPrefix.includes("/")) {
-      const segment = branding.receiptPrefix.split("/")[1]?.trim();
-      if (segment) {
-        return /^\d{2}-\d{2}$/.test(segment) ? `20${segment}` : segment;
-      }
-    }
-    return "2026-27";
-  }, [branding.receiptPrefix]);
 
   const [holidays, setHolidays] = useState<HolidayItem[]>([]);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedYearFilter, setSelectedYearFilter] = useState<string>("all");
-  const [customYearFilter, setCustomYearFilter] = useState<string>("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const loadHolidays = useCallback(async (yearId?: string) => {
+  const loadHolidays = useCallback(async () => {
     if (!canRead) {
       setState("denied");
       return;
@@ -78,7 +64,7 @@ export function HolidaysBoard() {
     setState("loading");
     setErrorMessage("");
     try {
-      const list = await api().holidays.list(yearId);
+      const list = await api().holidays.list();
       setHolidays(list);
       setState(list.length === 0 ? "empty" : "loaded");
     } catch (err) {
@@ -98,14 +84,8 @@ export function HolidaysBoard() {
   }, [canRead]);
 
   useEffect(() => {
-    const filterParam =
-      selectedYearFilter === "all"
-        ? undefined
-        : selectedYearFilter === "custom"
-        ? customYearFilter || undefined
-        : selectedYearFilter;
-    void loadHolidays(filterParam);
-  }, [loadHolidays, selectedYearFilter, customYearFilter]);
+    void loadHolidays();
+  }, [loadHolidays]);
 
   const filteredHolidays = useMemo(() => {
     return holidays.filter((h) => {
@@ -124,13 +104,7 @@ export function HolidaysBoard() {
   }) {
     await api().holidays.create(data);
     toast.success("Holiday scheduled");
-    const filterParam =
-      selectedYearFilter === "all"
-        ? undefined
-        : selectedYearFilter === "custom"
-        ? customYearFilter || undefined
-        : selectedYearFilter;
-    await loadHolidays(filterParam);
+    await loadHolidays();
   }
 
   async function handleDeleteHoliday(id: string) {
@@ -139,13 +113,7 @@ export function HolidaysBoard() {
     try {
       await api().holidays.remove(id);
       toast.success("Holiday removed");
-      const filterParam =
-        selectedYearFilter === "all"
-          ? undefined
-          : selectedYearFilter === "custom"
-          ? customYearFilter || undefined
-          : selectedYearFilter;
-      await loadHolidays(filterParam);
+      await loadHolidays();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete holiday");
     } finally {
@@ -179,28 +147,6 @@ export function HolidaysBoard() {
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 text-xs"
             />
-          </div>
-
-          {/* Academic Year Filter */}
-          <div className="flex items-center gap-1.5">
-            <Filter size={14} className="text-slate-400" />
-            <Select
-              value={selectedYearFilter}
-              onChange={(e) => setSelectedYearFilter(e.target.value)}
-              className="h-10 w-auto text-xs"
-            >
-              <option value="all">All Academic Years</option>
-              <option value="active">Active Year ({activeYearLabel})</option>
-              <option value="custom">Filter by Year ID...</option>
-            </Select>
-            {selectedYearFilter === "custom" ? (
-              <Input
-                placeholder="Enter Year UUID"
-                value={customYearFilter}
-                onChange={(e) => setCustomYearFilter(e.target.value)}
-                className="h-10 text-xs w-44"
-              />
-            ) : null}
           </div>
         </div>
 
@@ -236,7 +182,7 @@ export function HolidaysBoard() {
       ) : filteredHolidays.length === 0 ? (
         <EmptyState
           title="No matching holidays"
-          detail="No holidays match the selected search or academic year filter."
+          detail="No holidays match the search query."
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
@@ -273,11 +219,7 @@ export function HolidaysBoard() {
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-slate-500">
-                    <Badge variant="muted">
-                      {holiday.academicYearId
-                        ? `Academic Year (${activeYearLabel})`
-                        : `Active Year (${activeYearLabel})`}
-                    </Badge>
+                    <Badge variant="muted">Active Academic Year</Badge>
                   </TableCell>
                   {canManage ? (
                     <TableCell className="whitespace-nowrap text-right">
