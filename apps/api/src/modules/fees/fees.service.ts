@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { feeHeadCreateSchema, feeRecordSchema } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
@@ -19,12 +20,23 @@ export class FeesService {
     );
   }
 
-  createHead(acl: RequestAcl, body: unknown) {
+  async createHead(acl: RequestAcl, body: unknown) {
     this.policy.assertStructure(acl);
-    const input = feeHeadCreateSchema.parse(body);
-    return this.prisma.withSchool(acl.schoolId, (tx) =>
-      tx.feeHead.create({ data: { schoolId: acl.schoolId, name: input.name, amount: input.amount } }),
-    );
+    const parsed = feeHeadCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues.map((i) => i.message).join("; "));
+    }
+    const input = parsed.data;
+    try {
+      return await this.prisma.withSchool(acl.schoolId, (tx) =>
+        tx.feeHead.create({ data: { schoolId: acl.schoolId, name: input.name, amount: input.amount } }),
+      );
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        throw new ConflictException("Fee head name already exists in this school");
+      }
+      throw e;
+    }
   }
 
   async list(acl: RequestAcl, studentId?: string) {
