@@ -31,8 +31,12 @@ const NAV = [
   { href: "/timetable", label: "Timetable", icon: Calendar, permission: PERMISSIONS.TIMETABLE_READ },
   { href: "/exams", label: "Exams & Marks", icon: ClipboardList, permission: PERMISSIONS.EXAMS_READ },
   { href: "/fees", label: "Fees", icon: Banknote, permission: PERMISSIONS.FEES_READ },
-  { href: "/reports/attendance", label: "Reports", icon: FileBarChart, permission: PERMISSIONS.REPORTS_ATTENDANCE },
-  { href: "/reports/progress", label: "Report cards", icon: ClipboardList, permission: PERMISSIONS.REPORTS_PROGRESS },
+  {
+    href: "/reports",
+    label: "Reports",
+    icon: FileBarChart,
+    permission: [PERMISSIONS.REPORTS_ATTENDANCE, PERMISSIONS.REPORTS_FEES, PERMISSIONS.REPORTS_PROGRESS],
+  },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
 ];
 
@@ -40,7 +44,13 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { branding, acl, theme } = useAppBranding();
-  const items = NAV.filter((i) => !i.permission || acl.permissions.includes(i.permission));
+  const items = NAV.filter((i) => {
+    if (!i.permission) return true;
+    if (Array.isArray(i.permission)) {
+      return i.permission.some((p) => acl.permissions.includes(p));
+    }
+    return acl.permissions.includes(i.permission);
+  });
 
   return (
     <aside className="flex w-60 flex-col text-white" style={{ background: theme.colors.primaryDark }}>
@@ -52,7 +62,7 @@ export function AppSidebar() {
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
+          const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href + "/"));
           return (
             <Link
               key={item.href}

@@ -1,13 +1,16 @@
 "use client";
 
 import { AppHeader } from "../../../../components/shell/app-header";
-import { ReportCardView } from "../../../../features/exams/report-card-view";
+import { ProgressReportView } from "../../../../features/reports/progress-report-view";
 
-export default function ReportCardPage() {
+export default function ProgressReportPage() {
   return (
     <div>
-      <AppHeader title="Report card" subtitle="Published marks for the current academic year." />
-      <ReportCardView />
+      <AppHeader
+        title="Student Progress Report"
+        subtitle="Cross-subject marksheet tabulation, grade distribution, and individual student report cards"
+      />
+      <ProgressReportView />
     </div>
   );
 }
