@@ -255,6 +255,17 @@ async function seedSchoolB(passwordHash: string) {
   const section = await prisma.section.create({
     data: { schoolId, classId: cls.id, name: "A" },
   });
+  const superAdmin = await createUser({
+    schoolId,
+    identifier: "superadmin",
+    displayName: "School B Super Admin",
+    passwordHash,
+    roleCode: ROLE_CODES.SCHOOL_SUPER_ADMIN,
+  });
+  await prisma.userScope.create({
+    data: { schoolId, userId: superAdmin.id, scopeType: "school" },
+  });
+
   const teacher = await createUser({
     schoolId,
     identifier: "TCH-B",
@@ -296,6 +307,9 @@ async function seedSchoolB(passwordHash: string) {
       sectionId: section.id,
     },
   });
+  await prisma.userScope.create({
+    data: { schoolId, userId: stuUser.id, scopeType: "self", studentId: student.id },
+  });
   return { schoolId, section, teacher, student };
 }
 
@@ -317,6 +331,7 @@ async function main() {
   console.log("  9000000001 / parent of Arun");
   console.log("  AN2021-0001 / student Arun");
   console.log("  TCH-B / school-b teacher");
+  console.log("  school-b superadmin / isolation admin");
   console.log("section8A", a.section8A.id);
   console.log("schoolB", b.schoolId);
 }
