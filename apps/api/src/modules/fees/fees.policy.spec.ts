@@ -28,6 +28,39 @@ describe("FeesPolicy", () => {
     expect(() => policy.assertCanSeeStudent(acl, "st2", ["st1"])).toThrow(ForbiddenException);
   });
 
+  it("allows parent to read linked child receipt", () => {
+    const acl: RequestAcl = {
+      userId: "p1",
+      schoolId: "s1",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.RECEIPTS_READ],
+      scopes: [{ type: "children", studentId: "st1" }],
+    };
+    expect(() => policy.assertCanSeeReceipt(acl, "st1", ["st1"])).not.toThrow();
+  });
+
+  it("denies receipt read without receipts.read", () => {
+    const acl: RequestAcl = {
+      userId: "t1",
+      schoolId: "s1",
+      roles: ["teacher"],
+      permissions: [PERMISSIONS.FEES_READ],
+      scopes: [{ type: "school" }],
+    };
+    expect(() => policy.assertReceiptRead(acl)).toThrow(ForbiddenException);
+  });
+
+  it("denies parent reading another child's receipt", () => {
+    const acl: RequestAcl = {
+      userId: "p1",
+      schoolId: "s1",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.RECEIPTS_READ],
+      scopes: [{ type: "children", studentId: "st1" }],
+    };
+    expect(() => policy.assertCanSeeReceipt(acl, "st2", ["st1"])).toThrow(ForbiddenException);
+  });
+
   it("allows accounts admin to write structure with school scope", () => {
     const acl: RequestAcl = {
       userId: "a1",
