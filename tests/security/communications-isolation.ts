@@ -1,8 +1,10 @@
 /**
- * COM-001 Communications domain, RBAC, and multi-tenant isolation tests.
+ * COM-001 Communications domain, RBAC, date validation, publishedAt semantics,
+ * academicYearId reconciliation, and multi-tenant isolation tests.
  * Run against running API: pnpm tsx tests/security/communications-isolation.ts
  */
 import { PrismaClient } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 const API = process.env.API_URL ?? "http://localhost:4000";
 const PASSWORD = process.env.SEED_PASSWORD ?? "Password123!";
@@ -136,7 +138,7 @@ async function main() {
       }
     }
 
-    // 2. Draft vs Published Visibility (Staff vs Non-Staff)
+    // 2. Notice publishedAt Semantics & Draft vs Published Visibility
     // Admin creates draft notice (published: false)
     const draftNoticeRes = await authed(adminA.accessToken, "/notices", {
       method: "POST",
@@ -149,8 +151,18 @@ async function main() {
     if (!draftNoticeRes.ok) {
       throw new Error(`Admin create draft notice failed: ${draftNoticeRes.status} ${await draftNoticeRes.text()}`);
     }
-    const draftNotice = (await draftNoticeRes.json()) as { id: string; title: string };
+    const draftNotice = (await draftNoticeRes.json()) as {
+      id: string;
+      title: string;
+      published: boolean;
+      publishedAt: string | null;
+    };
     createdNoticeIds.push(draftNotice.id);
+
+    // Contract lock: Draft creation must NOT be treated as publication time
+    if (draftNotice.publishedAt !== null) {
+      throw new Error(`Draft notice must have publishedAt === null, got ${draftNotice.publishedAt}`);
+    }
 
     // Admin creates draft event (published: false)
     const draftEventRes = await authed(adminA.accessToken, "/events", {
@@ -196,7 +208,7 @@ async function main() {
       }
     }
 
-    // Publish the draft notice and draft event
+    // Publish the draft notice: publishing a draft must set publishedAt to the actual publication timestamp
     const publishNoticeRes = await authed(adminA.accessToken, `/notices/${draftNotice.id}`, {
       method: "PATCH",
       body: JSON.stringify({ published: true }),
@@ -204,6 +216,29 @@ async function main() {
     if (!publishNoticeRes.ok) {
       throw new Error(`Failed to publish notice: ${publishNoticeRes.status} ${await publishNoticeRes.text()}`);
     }
+    const publishedNotice = (await publishNoticeRes.json()) as { published: boolean; publishedAt: string | null };
+    if (!publishedNotice.published || !publishedNotice.publishedAt) {
+      throw new Error(`Publishing draft must set publishedAt timestamp, got ${publishedNotice.publishedAt}`);
+    }
+
+    // Unpublishing notice: unpublishing must reset publishedAt to null
+    const unpublishNoticeRes = await authed(adminA.accessToken, `/notices/${draftNotice.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ published: false }),
+    });
+    if (!unpublishNoticeRes.ok) {
+      throw new Error(`Failed to unpublish notice: ${unpublishNoticeRes.status} ${await unpublishNoticeRes.text()}`);
+    }
+    const unpublishedNotice = (await unpublishNoticeRes.json()) as { published: boolean; publishedAt: string | null };
+    if (unpublishedNotice.published || unpublishedNotice.publishedAt !== null) {
+      throw new Error(`Unpublishing notice must reset publishedAt to null, got ${unpublishedNotice.publishedAt}`);
+    }
+
+    // Re-publish the notice
+    await authed(adminA.accessToken, `/notices/${draftNotice.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ published: true }),
+    });
 
     const publishEventRes = await authed(adminA.accessToken, `/events/${draftEvent.id}`, {
       method: "PATCH",
@@ -213,7 +248,7 @@ async function main() {
       throw new Error(`Failed to publish event: ${publishEventRes.status} ${await publishEventRes.text()}`);
     }
 
-    // Now Student, Parent, and Teacher must see the published event and notice (since targetRole is null/all)
+    // Now Student, Parent, and Teacher must see the published event and notice
     for (const [roleName, userToken] of [
       ["teacher", teacherA.accessToken],
       ["parent", parentA.accessToken],
@@ -315,7 +350,79 @@ async function main() {
     if (!adminList.some((n) => n.id === teacherNotice.id)) throw new Error("Admin must see teacher notice");
     if (!adminList.some((n) => n.id === allNotice.id)) throw new Error("Admin must see all notice");
 
-    // 4. Holidays: Access and Mutation Permissions
+    // 4. Strengthened Event Date Validation
+    // Invalid startDate
+    const invalidStart = await authed(adminA.accessToken, "/events", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `${testPrefix}_InvalidStart`,
+        startDate: "invalid-date",
+        endDate: "2026-10-01T12:00:00Z",
+      }),
+    });
+    if (invalidStart.status !== 400) {
+      throw new Error(`Expected 400 for invalid startDate, got ${invalidStart.status}`);
+    }
+
+    // Invalid endDate
+    const invalidEnd = await authed(adminA.accessToken, "/events", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `${testPrefix}_InvalidEnd`,
+        startDate: "2026-10-01T12:00:00Z",
+        endDate: "not-a-date",
+      }),
+    });
+    if (invalidEnd.status !== 400) {
+      throw new Error(`Expected 400 for invalid endDate, got ${invalidEnd.status}`);
+    }
+
+    // startDate > endDate
+    const invertedDates = await authed(adminA.accessToken, "/events", {
+      method: "POST",
+      body: JSON.stringify({
+        title: `${testPrefix}_InvertedDates`,
+        startDate: "2026-10-02T12:00:00Z",
+        endDate: "2026-10-01T12:00:00Z",
+      }),
+    });
+    if (invertedDates.status !== 400) {
+      throw new Error(`Expected 400 for startDate > endDate, got ${invertedDates.status}`);
+    }
+
+    // Event update with inverted dates
+    const invertedUpdate = await authed(adminA.accessToken, `/events/${draftEvent.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        startDate: "2026-11-12T12:00:00Z", // existing endDate is 2026-11-10T12:00:00Z
+      }),
+    });
+    if (invertedUpdate.status !== 400) {
+      throw new Error(`Expected 400 for PATCH event with startDate > endDate, got ${invertedUpdate.status}`);
+    }
+
+    // Query parameters validation for GET /events
+    const badFromQuery = await authed(adminA.accessToken, "/events?from=bad-date");
+    if (badFromQuery.status !== 400) {
+      throw new Error(`Expected 400 for invalid from query param, got ${badFromQuery.status}`);
+    }
+
+    const badToQuery = await authed(adminA.accessToken, "/events?to=bad-date");
+    if (badToQuery.status !== 400) {
+      throw new Error(`Expected 400 for invalid to query param, got ${badToQuery.status}`);
+    }
+
+    const invertedQuery = await authed(adminA.accessToken, "/events?from=2026-11-10&to=2026-11-01");
+    if (invertedQuery.status !== 400) {
+      throw new Error(`Expected 400 for from > to query params, got ${invertedQuery.status}`);
+    }
+
+    const validQuery = await authed(adminA.accessToken, "/events?from=2026-11-01&to=2026-11-10");
+    if (!validQuery.ok) {
+      throw new Error(`Expected 200 for valid from/to query params, got ${validQuery.status}`);
+    }
+
+    // 5. Holidays: Access, AcademicYearId Reconciliation, and Mutation Permissions
     // Holiday read allowed for Teacher, Parent, Student (via NOTICES_READ)
     for (const [roleName, userToken] of [
       ["teacher", teacherA.accessToken],
@@ -328,7 +435,13 @@ async function main() {
       }
     }
 
-    // Admin creates holiday
+    // Find active academic year for School A
+    const activeYearA = await prisma.academicYear.findFirst({
+      where: { schoolId: schoolA.id, isActive: true },
+    });
+    if (!activeYearA) throw new Error("Active academic year missing for School A");
+
+    // Admin creates holiday without academicYearId -> should automatically link active academic year
     const testDate = "2026-08-15";
     const holidayRes = await authed(adminA.accessToken, "/holidays", {
       method: "POST",
@@ -340,8 +453,46 @@ async function main() {
     if (!holidayRes.ok) {
       throw new Error(`Admin create holiday failed: ${holidayRes.status} ${await holidayRes.text()}`);
     }
-    const holidayA = (await holidayRes.json()) as { id: string; name: string; date: string };
+    const holidayA = (await holidayRes.json()) as {
+      id: string;
+      name: string;
+      date: string;
+      academicYearId: string | null;
+    };
     createdHolidayIds.push(holidayA.id);
+
+    // Verify academicYearId is reconciled and populated
+    if (holidayA.academicYearId !== activeYearA.id) {
+      throw new Error(`Holiday academicYearId expected ${activeYearA.id}, got ${holidayA.academicYearId}`);
+    }
+
+    // Query holidays filtered by academicYearId
+    const holidayFilteredList = (await (
+      await authed(adminA.accessToken, `/holidays?academicYearId=${activeYearA.id}`)
+    ).json()) as { id: string }[];
+    if (!holidayFilteredList.some((h) => h.id === holidayA.id)) {
+      throw new Error("Filtered holidays by academicYearId must include created holiday");
+    }
+
+    const holidayUnmatchedList = (await (
+      await authed(adminA.accessToken, `/holidays?academicYearId=${randomUUID()}`)
+    ).json()) as { id: string }[];
+    if (holidayUnmatchedList.some((h) => h.id === holidayA.id)) {
+      throw new Error("Holidays filtered by foreign academicYearId must not include created holiday");
+    }
+
+    // Creating holiday with invalid academicYearId should fail (400)
+    const invalidYearHoliday = await authed(adminA.accessToken, "/holidays", {
+      method: "POST",
+      body: JSON.stringify({
+        name: `${testPrefix}_BadYear`,
+        date: "2026-08-16",
+        academicYearId: randomUUID(),
+      }),
+    });
+    if (invalidYearHoliday.status !== 400) {
+      throw new Error(`Expected 400 for non-existent academicYearId, got ${invalidYearHoliday.status}`);
+    }
 
     // Duplicate holiday on same date must be rejected (400)
     const dupHolidayRes = await authed(adminA.accessToken, "/holidays", {
@@ -367,7 +518,7 @@ async function main() {
       }
     }
 
-    // 5. Cross-School Read Isolation
+    // 6. Cross-School Read Isolation
     // Admin B / Teacher B query School B notices, events, holidays
     const schoolBNotices = (await (await authed(adminB.accessToken, "/notices")).json()) as { id: string }[];
     for (const id of createdNoticeIds) {
@@ -395,7 +546,7 @@ async function main() {
       }
     }
 
-    // 6. Cross-School Mutation Isolation
+    // 7. Cross-School Mutation Isolation
     // Admin B attempts to mutate or delete School A's notice, event, holiday
     const crossNoticePatch = await authed(adminB.accessToken, `/notices/${draftNotice.id}`, {
       method: "PATCH",
@@ -449,10 +600,10 @@ async function main() {
     createdHolidayIds.push(holidayB.id);
 
     console.log(
-      "PASS: COM-001 communications RBAC, published/draft filtering, audience targeting, cross-tenant isolation",
+      "PASS: COM-001 communications RBAC, published/draft filtering, publishedAt semantics, academicYearId reconciliation, date validation, audience targeting, cross-tenant isolation",
     );
   } finally {
-    // 7. Deterministic Cleanup
+    // 8. Deterministic Cleanup
     await cleanupTestData(schoolA.id, schoolB.id, testPrefix);
     await prisma.$disconnect();
   }

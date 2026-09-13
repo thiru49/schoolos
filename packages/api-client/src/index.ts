@@ -6,6 +6,9 @@ import type {
   PutAttendanceRequest,
   TokenPair,
 } from "@schoolos/types";
+import type { NoticeTargetRole } from "@schoolos/validation";
+
+export type { NoticeTargetRole };
 
 export class ApiError extends Error {
   constructor(
@@ -446,9 +449,9 @@ export function createApiClient(options: {
             id: string;
             title: string;
             body: string;
-            targetRole: string | null;
+            targetRole: NoticeTargetRole;
             published: boolean;
-            publishedAt: string;
+            publishedAt: string | null;
             authorId: string;
             authorName: string;
             createdAt: string;
@@ -457,16 +460,16 @@ export function createApiClient(options: {
       create: (body: {
         title: string;
         body: string;
-        targetRole?: "all" | "student" | "parent" | "teacher" | null;
+        targetRole?: NoticeTargetRole;
         published?: boolean;
       }) =>
         request<{
           id: string;
           title: string;
           body: string;
-          targetRole: string | null;
+          targetRole: NoticeTargetRole;
           published: boolean;
-          publishedAt: string;
+          publishedAt: string | null;
           authorId: string;
           authorName: string;
           createdAt: string;
@@ -476,7 +479,7 @@ export function createApiClient(options: {
         body: {
           title?: string;
           body?: string;
-          targetRole?: "all" | "student" | "parent" | "teacher" | null;
+          targetRole?: NoticeTargetRole;
           published?: boolean;
         },
       ) =>
@@ -484,9 +487,9 @@ export function createApiClient(options: {
           id: string;
           title: string;
           body: string;
-          targetRole: string | null;
+          targetRole: NoticeTargetRole;
           published: boolean;
-          publishedAt: string;
+          publishedAt: string | null;
           authorId: string;
           authorName: string;
           createdAt: string;
@@ -556,10 +559,28 @@ export function createApiClient(options: {
         request<{ deleted: boolean }>(`/events/${id}`, { method: "DELETE" }),
     },
     holidays: {
-      list: () =>
-        request<{ id: string; name: string; date: string; createdAt: string }[]>("/holidays"),
-      create: (body: { name: string; date: string }) =>
-        request<{ id: string; name: string; date: string; createdAt: string }>("/holidays", {
+      list: (academicYearId?: string) => {
+        const q = new URLSearchParams();
+        if (academicYearId) q.set("academicYearId", academicYearId);
+        const qs = q.toString();
+        return request<
+          {
+            id: string;
+            name: string;
+            date: string;
+            academicYearId: string | null;
+            createdAt: string;
+          }[]
+        >(`/holidays${qs ? `?${qs}` : ""}`);
+      },
+      create: (body: { name: string; date: string; academicYearId?: string }) =>
+        request<{
+          id: string;
+          name: string;
+          date: string;
+          academicYearId: string | null;
+          createdAt: string;
+        }>("/holidays", {
           method: "POST",
           body: JSON.stringify(body),
         }),

@@ -72,8 +72,11 @@ export class CommunicationsController {
 
   @Get("holidays")
   @RequirePermission(PERMISSIONS.NOTICES_READ)
-  listHolidays(@CurrentUser() acl: RequestAcl) {
-    return this.communications.listHolidays(acl);
+  listHolidays(
+    @CurrentUser() acl: RequestAcl,
+    @Query("academicYearId") academicYearId?: string,
+  ) {
+    return this.communications.listHolidays(acl, academicYearId);
   }
 
   @Post("holidays")

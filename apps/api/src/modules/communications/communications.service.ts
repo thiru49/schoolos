@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { Prisma } from "@prisma/client";
 import {
   eventCreateSchema,
+  eventQuerySchema,
   eventUpdateSchema,
   holidayCreateSchema,
   noticeCreateSchema,
@@ -22,6 +23,15 @@ export class CommunicationsService {
     return acl.roles.some((r) =>
       ["school_super_admin", "school_admin", "academic_admin", "accounts_admin"].includes(r),
     );
+  }
+
+  private parseOrBadRequest<T>(schema: { parse: (val: unknown) => T }, data: unknown): T {
+    try {
+      return schema.parse(data);
+    } catch (err: any) {
+      const msg = err?.issues?.map((i: any) => i.message).join("; ") || err?.message || "Validation failed";
+      throw new BadRequestException(msg);
+    }
   }
 
   // --- NOTICES ---
@@ -50,7 +60,7 @@ export class CommunicationsService {
             select: { id: true, displayName: true },
           },
         },
-        orderBy: { publishedAt: "desc" },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       });
 
       return rows.map((n) => ({
@@ -59,7 +69,7 @@ export class CommunicationsService {
         body: n.body,
         targetRole: n.targetRole,
         published: n.published,
-        publishedAt: n.publishedAt.toISOString(),
+        publishedAt: n.publishedAt ? n.publishedAt.toISOString() : null,
         authorId: n.authorId,
         authorName: n.author.displayName,
         createdAt: n.createdAt.toISOString(),
@@ -69,10 +79,12 @@ export class CommunicationsService {
 
   createNotice(acl: RequestAcl, body: unknown) {
     this.policy.assertWriteNotices(acl);
-    const input = noticeCreateSchema.parse(body);
+    const input = this.parseOrBadRequest(noticeCreateSchema, body);
 
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const targetRole = input.targetRole === "all" ? null : (input.targetRole ?? null);
+      const published = input.published ?? true;
+      const publishedAt = published ? new Date() : null;
 
       const notice = await tx.notice.create({
         data: {
@@ -81,7 +93,8 @@ export class CommunicationsService {
           title: input.title,
           body: input.body,
           targetRole,
-          published: input.published ?? true,
+          published,
+          publishedAt,
         },
         include: {
           author: {
@@ -96,7 +109,7 @@ export class CommunicationsService {
         body: notice.body,
         targetRole: notice.targetRole,
         published: notice.published,
-        publishedAt: notice.publishedAt.toISOString(),
+        publishedAt: notice.publishedAt ? notice.publishedAt.toISOString() : null,
         authorId: notice.authorId,
         authorName: notice.author.displayName,
         createdAt: notice.createdAt.toISOString(),
@@ -106,7 +119,7 @@ export class CommunicationsService {
 
   updateNotice(acl: RequestAcl, id: string, body: unknown) {
     this.policy.assertWriteNotices(acl);
-    const input = noticeUpdateSchema.parse(body);
+    const input = this.parseOrBadRequest(noticeUpdateSchema, body);
 
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const existing = await tx.notice.findFirst({
@@ -122,7 +135,16 @@ export class CommunicationsService {
       if (input.targetRole !== undefined) {
         data.targetRole = input.targetRole === "all" ? null : input.targetRole;
       }
-      if (input.published !== undefined) data.published = input.published;
+      if (input.published !== undefined) {
+        data.published = input.published;
+        if (input.published && !existing.published) {
+          // Transition draft -> published: set actual publication timestamp
+          data.publishedAt = new Date();
+        } else if (!input.published && existing.published) {
+          // Transition published -> draft (unpublishing): explicitly reset publishedAt to null
+          data.publishedAt = null;
+        }
+      }
 
       const updated = await tx.notice.update({
         where: { id, schoolId: acl.schoolId },
@@ -140,7 +162,7 @@ export class CommunicationsService {
         body: updated.body,
         targetRole: updated.targetRole,
         published: updated.published,
-        publishedAt: updated.publishedAt.toISOString(),
+        publishedAt: updated.publishedAt ? updated.publishedAt.toISOString() : null,
         authorId: updated.authorId,
         authorName: updated.author.displayName,
         createdAt: updated.createdAt.toISOString(),
@@ -170,6 +192,11 @@ export class CommunicationsService {
 
   listEvents(acl: RequestAcl, from?: string, to?: string) {
     this.policy.assertReadEvents(acl);
+    const query = this.parseOrBadRequest(eventQuerySchema, {
+      from: from ? from.trim() : undefined,
+      to: to ? to.trim() : undefined,
+    });
+
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const isStaff = this.isStaff(acl);
       const where: Prisma.EventWhereInput = {
@@ -180,10 +207,10 @@ export class CommunicationsService {
         where.published = true;
       }
 
-      if (from || to) {
+      if (query.from || query.to) {
         where.startDate = {
-          ...(from ? { gte: new Date(from) } : {}),
-          ...(to ? { lte: new Date(to) } : {}),
+          ...(query.from ? { gte: new Date(query.from) } : {}),
+          ...(query.to ? { lte: new Date(query.to) } : {}),
         };
       }
 
@@ -207,7 +234,7 @@ export class CommunicationsService {
 
   createEvent(acl: RequestAcl, body: unknown) {
     this.policy.assertWriteEvents(acl);
-    const input = eventCreateSchema.parse(body);
+    const input = this.parseOrBadRequest(eventCreateSchema, body);
 
     const startDate = new Date(input.startDate);
     const endDate = new Date(input.endDate);
@@ -243,7 +270,7 @@ export class CommunicationsService {
 
   updateEvent(acl: RequestAcl, id: string, body: unknown) {
     this.policy.assertWriteEvents(acl);
-    const input = eventUpdateSchema.parse(body);
+    const input = this.parseOrBadRequest(eventUpdateSchema, body);
 
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const existing = await tx.event.findFirst({
@@ -305,11 +332,16 @@ export class CommunicationsService {
 
   // --- HOLIDAYS ---
 
-  listHolidays(acl: RequestAcl) {
+  listHolidays(acl: RequestAcl, academicYearId?: string) {
     this.policy.assertReadHolidays(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const where: Prisma.HolidayWhereInput = {
+        schoolId: acl.schoolId,
+        ...(academicYearId ? { academicYearId } : {}),
+      };
+
       const rows = await tx.holiday.findMany({
-        where: { schoolId: acl.schoolId },
+        where,
         orderBy: { date: "asc" },
       });
 
@@ -317,6 +349,7 @@ export class CommunicationsService {
         id: h.id,
         name: h.name,
         date: h.date,
+        academicYearId: h.academicYearId,
         createdAt: h.createdAt.toISOString(),
       }));
     });
@@ -324,7 +357,7 @@ export class CommunicationsService {
 
   createHoliday(acl: RequestAcl, body: unknown) {
     this.policy.assertManageHolidays(acl);
-    const input = holidayCreateSchema.parse(body);
+    const input = this.parseOrBadRequest(holidayCreateSchema, body);
 
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const existing = await tx.holiday.findFirst({
@@ -334,11 +367,28 @@ export class CommunicationsService {
         throw new BadRequestException("A holiday is already scheduled for this date");
       }
 
+      let academicYearId = input.academicYearId ?? null;
+      if (academicYearId) {
+        const yr = await tx.academicYear.findFirst({
+          where: { id: academicYearId, schoolId: acl.schoolId },
+        });
+        if (!yr) {
+          throw new BadRequestException("Academic year not found in this school");
+        }
+      } else {
+        const activeYear = await tx.academicYear.findFirst({
+          where: { schoolId: acl.schoolId, isActive: true },
+          select: { id: true },
+        });
+        academicYearId = activeYear?.id ?? null;
+      }
+
       const holiday = await tx.holiday.create({
         data: {
           schoolId: acl.schoolId,
           name: input.name,
           date: input.date,
+          academicYearId,
         },
       });
 
@@ -346,6 +396,7 @@ export class CommunicationsService {
         id: holiday.id,
         name: holiday.name,
         date: holiday.date,
+        academicYearId: holiday.academicYearId,
         createdAt: holiday.createdAt.toISOString(),
       };
     });

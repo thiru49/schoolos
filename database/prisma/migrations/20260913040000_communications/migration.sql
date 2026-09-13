@@ -6,7 +6,7 @@ CREATE TABLE "notices" (
     "body" TEXT NOT NULL,
     "target_role" TEXT,
     "published" BOOLEAN NOT NULL DEFAULT true,
-    "published_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "published_at" TIMESTAMP(3),
     "author_id" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -36,6 +36,7 @@ CREATE TABLE "holidays" (
     "school_id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "date" TEXT NOT NULL,
+    "academic_year_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -52,6 +53,7 @@ CREATE UNIQUE INDEX "events_id_school_id_key" ON "events"("id", "school_id");
 
 -- CreateIndex
 CREATE INDEX "holidays_school_id_date_idx" ON "holidays"("school_id", "date");
+CREATE INDEX "holidays_school_id_academic_year_id_idx" ON "holidays"("school_id", "academic_year_id");
 CREATE UNIQUE INDEX "holidays_id_school_id_key" ON "holidays"("id", "school_id");
 CREATE UNIQUE INDEX "holidays_school_id_date_key" ON "holidays"("school_id", "date");
 
@@ -67,6 +69,9 @@ ALTER TABLE "events" ADD CONSTRAINT "events_school_id_fkey"
 
 ALTER TABLE "holidays" ADD CONSTRAINT "holidays_school_id_fkey"
     FOREIGN KEY ("school_id") REFERENCES "schools"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "holidays" ADD CONSTRAINT "holidays_academic_year_id_school_id_fkey"
+    FOREIGN KEY ("academic_year_id", "school_id") REFERENCES "academic_years"("id", "school_id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- RLS Enablement & Policies
 ALTER TABLE "notices" ENABLE ROW LEVEL SECURITY;
