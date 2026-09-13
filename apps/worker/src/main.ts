@@ -1,6 +1,10 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { Worker } from "bullmq";
 import { classifyExpoPushResponse } from "./expo-push";
+import { renderReportCardPdf, type ReportCardPayload } from "./report-card-pdf";
 
 const url = process.env.REDIS_URL ?? "redis://localhost:6379";
 const prisma = new PrismaClient();
@@ -100,3 +104,18 @@ const worker = new Worker(
 
 worker.on("ready", () => console.log("SchoolOS worker listening on notifications"));
 worker.on("failed", (job, err) => console.error("job failed", job?.id, err));
+
+const pdfWorker = new Worker(
+  "pdf",
+  async (job) => {
+    if (job.name !== "report-card") return;
+    const data = job.data as { schoolId: string; studentId: string; payload: ReportCardPayload };
+    const dir = process.env.PDF_DIR ?? path.join(os.tmpdir(), "schoolos-pdfs");
+    await fs.mkdir(dir, { recursive: true });
+    const buf = await renderReportCardPdf(data.payload);
+    await fs.writeFile(path.join(dir, `${data.schoolId}-${data.studentId}.pdf`), buf);
+  },
+  { connection: { url }, autorun: true },
+);
+pdfWorker.on("ready", () => console.log("SchoolOS worker listening on pdf"));
+pdfWorker.on("failed", (job, err) => console.error("pdf job failed", job?.id, err));

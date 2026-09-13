@@ -33,6 +33,35 @@ describe("ExamsPolicy", () => {
     expect(() => policy.assertSubmitSection(teacher(), "sec-9b", "c9")).toThrow(ForbiddenException);
   });
 
+  it("allows teacher report card on 8-A and denies 9-B", () => {
+    const t = {
+      ...teacher(),
+      permissions: [...teacher().permissions, PERMISSIONS.REPORTS_PROGRESS],
+    };
+    expect(() =>
+      policy.assertViewReportCard(t, { id: "arun", sectionId: "sec-8a", classId: "c8" }),
+    ).not.toThrow();
+    expect(() =>
+      policy.assertViewReportCard(t, { id: "maria", sectionId: "sec-9b", classId: "c9" }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("allows parent report card for linked child only", () => {
+    const parent: RequestAcl = {
+      userId: "p1",
+      schoolId: "s1",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.MARKS_READ],
+      scopes: [{ type: "children", studentId: "arun" }],
+    };
+    expect(() =>
+      policy.assertViewReportCard(parent, { id: "arun", sectionId: "sec-8a", classId: "c8" }),
+    ).not.toThrow();
+    expect(() =>
+      policy.assertViewReportCard(parent, { id: "maria", sectionId: "sec-9b", classId: "c9" }),
+    ).toThrow(ForbiddenException);
+  });
+
   it("denies a student drafting marks", () => {
     const student: RequestAcl = {
       userId: "st1",

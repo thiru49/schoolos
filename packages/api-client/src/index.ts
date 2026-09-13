@@ -283,6 +283,23 @@ export function createApiClient(options: {
         request<unknown>(`/exams/${examId}/marks`, { method: "PUT", body: JSON.stringify({ marks }) }),
       submit: (examId: string) => request<{ submitted: number }>(`/exams/${examId}/marks/submit`, { method: "POST" }),
       publish: (examId: string) => request<{ published: number }>(`/exams/${examId}/marks/publish`, { method: "POST" }),
+      reportCard: (studentId?: string) =>
+        request<{
+          schoolName: string;
+          logoUrl: string | null;
+          studentId: string;
+          studentName: string;
+          classSection: string;
+          academicYear: string;
+          rows: { exam: string; subject: string; score: number; maxScore: number }[];
+        }>(`/exams/report-card${studentId ? `?studentId=${studentId}` : ""}`),
+      enqueueReportCardPdf: (studentId?: string) =>
+        request<{ queued: boolean; studentId: string }>("/exams/report-card/pdf", {
+          method: "POST",
+          body: JSON.stringify({ studentId }),
+        }),
+      reportCardPdfUrl: (studentId?: string) =>
+        `/exams/report-card/pdf${studentId ? `?studentId=${studentId}` : ""}`,
     },
     homework: {
       list: (query?: { sectionId?: string; studentId?: string }) => {

@@ -33,6 +33,9 @@ export default function Academics() {
       <View className="mt-3">
         <AppButton label="Fees" variant="secondary" onPress={() => router.push("/fees")} />
       </View>
+      <View className="mt-3">
+        <AppButton label="Report card" variant="secondary" onPress={() => router.push("/report-card")} />
+      </View>
     </View>
   );
 }
