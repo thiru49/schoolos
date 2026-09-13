@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { examCreateSchema, marksDraftSchema } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
@@ -18,8 +18,22 @@ export class ExamsService {
 
   list(acl: RequestAcl, sectionId?: string, studentId?: string) {
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      if (!sectionId && !studentId && acl.scopes.some((s) => s.type === "children")) {
+        const linked = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+          include: { student: true },
+        });
+        const sectionIds = [...new Set(linked.map((l) => l.student.sectionId))];
+        if (sectionIds.length === 0) return [];
+        const rows = await tx.exam.findMany({
+          where: { schoolId: acl.schoolId, sectionId: { in: sectionIds } },
+          include: { subject: true, section: { include: { class: true } } },
+          orderBy: { examDate: "desc" },
+        });
+        return rows.map(examDto);
+      }
+
       const section = await this.resolveSection(tx, acl, sectionId, studentId);
-      const viaChild = Boolean(studentId) || acl.scopes.some((s) => s.type === "self");
       if (!section) {
         if (!acl.scopes.some((s) => s.type === "school")) return [];
         const rows = await tx.exam.findMany({
@@ -29,13 +43,27 @@ export class ExamsService {
         });
         return rows.map(examDto);
       }
-      if (!viaChild) this.policy.assertReadSection(acl, section.id, section.classId);
+      const flags = await this.viewerFlags(tx, acl, section.id);
+      this.policy.assertReadSection(acl, section.id, section.classId, flags);
       const rows = await tx.exam.findMany({
         where: { schoolId: acl.schoolId, sectionId: section.id },
         include: { subject: true, section: { include: { class: true } } },
         orderBy: { examDate: "desc" },
       });
       return rows.map(examDto);
+    });
+  }
+
+  get(acl: RequestAcl, id: string) {
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const exam = await tx.exam.findFirst({
+        where: { id, schoolId: acl.schoolId },
+        include: { subject: true, section: { include: { class: true } } },
+      });
+      if (!exam) throw new NotFoundException("Exam not found");
+      const flags = await this.viewerFlags(tx, acl, exam.sectionId);
+      this.policy.assertReadSection(acl, exam.sectionId, exam.classId, flags);
+      return examDto(exam);
     });
   }
 
@@ -47,6 +75,10 @@ export class ExamsService {
         where: { id: input.sectionId, classId: input.classId, schoolId: acl.schoolId },
       });
       if (!section) throw new BadRequestException("Section does not belong to this class");
+      const subject = await tx.subject.findFirst({
+        where: { id: input.subjectId, schoolId: acl.schoolId },
+      });
+      if (!subject) throw new BadRequestException("Subject not found");
       const exam = await tx.exam.create({
         data: {
           schoolId: acl.schoolId,
@@ -70,8 +102,23 @@ export class ExamsService {
         include: { subject: true, section: { include: { class: true } } },
       });
       if (!exam) throw new NotFoundException("Exam not found");
-      const viaChild = Boolean(studentId) || acl.scopes.some((s) => s.type === "self");
-      if (!viaChild) this.policy.assertReadSection(acl, exam.sectionId, exam.classId);
+      if (studentId) {
+        const student = await tx.student.findFirst({ where: { id: studentId, schoolId: acl.schoolId } });
+        if (!student) throw new NotFoundException("Student not found");
+        const linked = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+        });
+        const isChild = linked.some((l) => l.studentId === studentId);
+        const isSelf = acl.scopes.some((s) => s.type === "self" && s.studentId === studentId);
+        if (!isChild && !isSelf) {
+          throw new ForbiddenException("You cannot read this student");
+        }
+        if (student.sectionId !== exam.sectionId) {
+          throw new ForbiddenException("You cannot read this exam");
+        }
+      }
+      const flags = await this.viewerFlags(tx, acl, exam.sectionId);
+      this.policy.assertReadSection(acl, exam.sectionId, exam.classId, flags);
       const publishedOnly = !acl.permissions.includes(PERMISSIONS.MARKS_DRAFT)
         && !acl.permissions.includes(PERMISSIONS.MARKS_PUBLISH);
       const students = await tx.student.findMany({
@@ -197,6 +244,22 @@ export class ExamsService {
         submittedCount: e.marks.filter((m) => m.status === "submitted").length,
       }));
     });
+  }
+
+  private async viewerFlags(
+    tx: import("@prisma/client").Prisma.TransactionClient,
+    acl: RequestAcl,
+    sectionId: string,
+  ) {
+    const me = await tx.student.findFirst({ where: { schoolId: acl.schoolId, userId: acl.userId } });
+    const linked = await tx.parentStudent.findMany({
+      where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+      include: { student: true },
+    });
+    return {
+      selfInSection: me?.sectionId === sectionId,
+      childInSection: linked.some((l) => l.student.sectionId === sectionId),
+    };
   }
 
   private async resolveSection(

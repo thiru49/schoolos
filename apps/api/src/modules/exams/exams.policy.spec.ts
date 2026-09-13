@@ -27,4 +27,26 @@ describe("ExamsPolicy", () => {
   it("denies teacher publish", () => {
     expect(() => policy.assertPublish(teacher())).toThrow(ForbiddenException);
   });
+
+  it("allows a parent to read a linked child's section", () => {
+    const parent: RequestAcl = {
+      userId: "p1",
+      schoolId: "s1",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.EXAMS_READ],
+      scopes: [{ type: "children", studentId: "arun" }],
+    };
+    expect(() => policy.assertReadSection(parent, "sec-8a", "c8", { childInSection: true })).not.toThrow();
+  });
+
+  it("denies a parent reading an unlinked section", () => {
+    const parent: RequestAcl = {
+      userId: "p1",
+      schoolId: "s1",
+      roles: ["parent"],
+      permissions: [PERMISSIONS.EXAMS_READ],
+      scopes: [{ type: "children", studentId: "arun" }],
+    };
+    expect(() => policy.assertReadSection(parent, "sec-9b", "c9")).toThrow(ForbiddenException);
+  });
 });

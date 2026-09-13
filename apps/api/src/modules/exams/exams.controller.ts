@@ -34,6 +34,12 @@ export class ExamsController {
     return this.exams.queue(acl);
   }
 
+  @Get(":id")
+  @RequirePermission(PERMISSIONS.EXAMS_READ)
+  get(@CurrentUser() acl: RequestAcl, @Param("id") id: string) {
+    return this.exams.get(acl, id);
+  }
+
   @Get(":id/marks")
   @RequirePermission(PERMISSIONS.MARKS_READ)
   entry(

@@ -68,6 +68,14 @@ async function main() {
   });
   if (teacherWrite.ok) throw new Error("teacher must not write timetable");
 
+  const minute = String((Date.now() % 50) + 10).padStart(2, "0");
+  const startTime = `14:${minute}`;
+  const endHour = "14";
+  const endMinute = String(Number(minute) + 5).padStart(2, "0");
+  const endTime = `${endHour}:${endMinute}`;
+  const overlapStart = `14:${String(Number(minute) + 2).padStart(2, "0")}`;
+  const overlapEnd = `14:${String(Number(minute) + 8).padStart(2, "0")}`;
+
   const created = await authed(admin.accessToken, "/timetable", {
     method: "POST",
     body: JSON.stringify({
@@ -76,8 +84,8 @@ async function main() {
       subjectId: sub.id,
       teacherId: tch.id,
       weekday: 3,
-      startTime: "11:00",
-      endTime: "11:45",
+      startTime,
+      endTime,
     }),
   });
   if (!created.ok) throw new Error("admin create period failed " + (await created.text()));
@@ -91,8 +99,8 @@ async function main() {
       subjectId: sub.id,
       teacherId: tch.id,
       weekday: 3,
-      startTime: "11:30",
-      endTime: "12:15",
+      startTime: overlapStart,
+      endTime: overlapEnd,
     }),
   });
   if (overlap.ok) throw new Error("overlapping period must be rejected");
