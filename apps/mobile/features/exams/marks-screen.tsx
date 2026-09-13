@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
@@ -8,6 +8,7 @@ import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
+import { ChildSwitcher } from "../parent/child-switcher";
 import { TeacherMarksEntry } from "./teacher-marks-entry";
 
 type Exam = { id: string; name: string; examDate: string; subjectName: string; maxScore: number };
@@ -19,12 +20,13 @@ export function MarksScreen() {
   const canDraft = Boolean(acl?.permissions.includes(PERMISSIONS.MARKS_DRAFT));
   const isParent = Boolean(acl?.roles.includes("parent"));
   const [exams, setExams] = useState<Exam[]>([]);
+  const [examId, setExamId] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [examName, setExamName] = useState("");
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
   const [message, setMessage] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (nextExamId?: string) => {
     setState("loading");
     setMessage("");
     try {
@@ -33,8 +35,9 @@ export function MarksScreen() {
         isParent && selectedChild ? { studentId: selectedChild.studentId } : undefined,
       );
       setExams(list);
-      const first = list[0];
+      const first = list.find((e) => e.id === nextExamId) ?? list[0];
       if (first) {
+        setExamId(first.id);
         const data = await client.exams.marks(
           first.id,
           isParent && selectedChild ? selectedChild.studentId : undefined,
@@ -85,6 +88,27 @@ export function MarksScreen() {
         </AppText>
         <AppText variant="caption">{examName}</AppText>
       </View>
+      {isParent ? (
+        <View className="mt-3 px-4">
+          <ChildSwitcher />
+        </View>
+      ) : null}
+      {exams.length > 1 ? (
+        <ScrollView horizontal className="mt-3" contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+          {exams.map((e) => (
+            <Pressable
+              key={e.id}
+              onPress={() => void load(e.id)}
+              className="rounded-full px-3 py-2"
+              style={{ backgroundColor: e.id === examId ? theme.colors.primary : "white" }}
+            >
+              <AppText variant="caption" color={e.id === examId ? "white" : theme.colors.ink}>
+                {e.name}
+              </AppText>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
       {state === "loading" ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator />

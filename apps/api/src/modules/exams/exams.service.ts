@@ -147,6 +147,13 @@ export class ExamsService {
         const me = await tx.student.findFirst({ where: { schoolId: acl.schoolId, userId: acl.userId } });
         if (me) rows = rows.filter((r) => r.studentId === me.id);
       }
+      if (acl.scopes.some((s) => s.type === "children") && !studentId) {
+        const linked = await tx.parentStudent.findMany({
+          where: { schoolId: acl.schoolId, parent: { userId: acl.userId } },
+        });
+        const childIds = new Set(linked.map((l) => l.studentId));
+        rows = rows.filter((r) => childIds.has(r.studentId));
+      }
       return { exam: examDto(exam), rows };
     });
   }
