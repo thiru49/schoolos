@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
@@ -9,61 +9,98 @@ import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 import { ChildSwitcher } from "../parent/child-switcher";
+import { getCachedFees, setCachedFees, type CachedFeeRow, type CachedSummary } from "./fees-cache";
 
-type Row = {
-  id: string;
-  amount: number;
-  method: string;
-  feeHeadName: string;
-  receiptNumber: string | null;
-  receiptId: string | null;
-  createdAt: string;
-};
+export function PaymentMethodPill({ method }: { method: string }) {
+  const m = method.toLowerCase();
+  let bg = "#64748b";
+  if (m === "cash") bg = "#16a34a";
+  else if (m === "upi") bg = "#0b3a6e";
+  else if (m === "bank") bg = "#d97706";
 
-type Summary = {
-  studentId: string;
-  studentName: string;
-  headsTotal: number;
-  paidTotal: number;
-  dues: number;
-};
+  return (
+    <View style={{ backgroundColor: bg }} className="rounded-full px-2.5 py-0.5">
+      <AppText variant="caption" color="#ffffff">
+        {method.toUpperCase()}
+      </AppText>
+    </View>
+  );
+}
 
 export function FeesScreen() {
   const { theme, acl, selectedChild } = useBranding();
   const router = useRouter();
   const isParent = Boolean(acl?.roles.includes("parent"));
+  const isStudent = Boolean(acl?.roles.includes("student"));
   const canRead = Boolean(acl?.permissions.includes(PERMISSIONS.FEES_READ));
   const canReceipt = Boolean(acl?.permissions.includes(PERMISSIONS.RECEIPTS_READ));
-  const [rows, setRows] = useState<Row[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
+
+  const [rows, setRows] = useState<CachedFeeRow[]>([]);
+  const [summary, setSummary] = useState<CachedSummary | null>(null);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
   const [message, setMessage] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [isCachedData, setIsCachedData] = useState(false);
+  const [cachedTime, setCachedTime] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const activeStudentId = isParent ? selectedChild?.studentId : undefined;
+
+  const load = useCallback(async (isPullToRefresh = false) => {
     if (!canRead) {
       setState("denied");
       setMessage("You do not have permission to view fees.");
       return;
     }
+
     if (isParent && !selectedChild) {
       setRows([]);
       setSummary(null);
       setState("empty");
+      setMessage("No linked children found. Please contact the school office.");
       return;
     }
-    setState("loading");
+
+    if (isPullToRefresh) {
+      setRefreshing(true);
+    } else {
+      setState("loading");
+    }
     setMessage("");
+
+    const cacheKey = activeStudentId ?? "self";
+
     try {
-      const studentId = isParent && selectedChild ? selectedChild.studentId : undefined;
       const client = await api();
       const [list, nextSummary] = await Promise.all([
-        client.fees.list(studentId),
-        client.fees.summary(studentId),
+        client.fees.list(activeStudentId),
+        client.fees.summary(activeStudentId),
       ]);
+
       setRows(list);
       setSummary(nextSummary);
-      setState(list.length === 0 && nextSummary.headsTotal === 0 ? "empty" : "loaded");
+      setIsCachedData(false);
+      setCachedTime(null);
+
+      // Persist to offline cache
+      void setCachedFees(cacheKey, { summary: nextSummary, rows: list });
+
+      if (list.length === 0 && nextSummary.headsTotal === 0) {
+        setState("empty");
+      } else {
+        setState("loaded");
+      }
     } catch (e) {
+      // Check offline fallback cache
+      const cached = await getCachedFees(cacheKey);
+      if (cached) {
+        setRows(cached.rows);
+        setSummary(cached.summary);
+        setIsCachedData(true);
+        setCachedTime(new Date(cached.cachedAt).toLocaleTimeString());
+        setState("loaded");
+        return;
+      }
+
       if (e instanceof ApiError && e.status === 403) {
         setState("denied");
         setMessage(e.message);
@@ -76,8 +113,12 @@ export function FeesScreen() {
       }
       setState("error");
       setMessage(e instanceof Error ? e.message : "Failed to load fees");
+    } finally {
+      if (isPullToRefresh) {
+        setRefreshing(false);
+      }
     }
-  }, [canRead, isParent, selectedChild]);
+  }, [canRead, isParent, selectedChild, activeStudentId]);
 
   useEffect(() => {
     void load();
@@ -93,54 +134,180 @@ export function FeesScreen() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
+      {/* Header */}
       <View className="px-4">
         <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
         <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          Fees
+          {isStudent ? "My Fees & Dues" : "Fees & Receipts"}
         </AppText>
       </View>
+
+      {/* Child Switcher for Parents */}
       {isParent ? (
         <View className="mt-3 px-4">
           <ChildSwitcher />
         </View>
       ) : null}
-      {state === "loading" ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator />
-        </View>
-      ) : null}
-      {state === "offline" ? <OfflineState onRetry={() => void load()} /> : null}
-      {state === "error" ? <ErrorState message={message} onRetry={() => void load()} /> : null}
-      {state === "empty" ? (
-        <View className="p-4">
-          <EmptyState title="No fees" detail="No fee heads or receipts for this student yet." />
-        </View>
-      ) : null}
-      {state === "loaded" && summary ? (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <View className="mb-4 rounded-2xl bg-white p-4">
-            <AppText variant="label">{summary.studentName}</AppText>
-            <AppText variant="caption">
-              Paid ₹{summary.paidTotal} of ₹{summary.headsTotal}
-            </AppText>
-            <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 8 }}>
-              {summary.dues === 0 ? "No dues" : `Dues ₹${summary.dues}`}
+
+      {/* Offline cached indicator banner */}
+      {isCachedData ? (
+        <View className="mx-4 mt-3 flex-row items-center justify-between rounded-xl bg-amber-50 p-3 border border-amber-200">
+          <View style={{ flex: 1 }}>
+            <AppText variant="caption" color="#92400e">
+              Offline — Showing cached details{cachedTime ? ` from ${cachedTime}` : ""}
             </AppText>
           </View>
+          <Pressable onPress={() => void load(true)} className="ml-2 rounded-lg bg-amber-600 px-2.5 py-1">
+            <AppText variant="caption" color="#ffffff">
+              Retry
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* State views */}
+      {state === "loading" && !refreshing ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : null}
+
+      {state === "offline" && !isCachedData ? (
+        <OfflineState onRetry={() => void load()} />
+      ) : null}
+
+      {state === "error" && !isCachedData ? (
+        <ErrorState message={message} onRetry={() => void load()} />
+      ) : null}
+
+      {/* Dedicated empty states */}
+      {state === "empty" ? (
+        <View className="p-4">
+          {isParent && !selectedChild ? (
+            <EmptyState
+              title="No Linked Child"
+              detail="Select a child above or contact the school office to link your student account."
+            />
+          ) : summary && summary.headsTotal === 0 ? (
+            <EmptyState
+              title="No Fees Assigned"
+              detail="No fee structure has been assigned for this student yet."
+            />
+          ) : (
+            <EmptyState
+              title="No Fees"
+              detail="No fee heads or receipts for this student yet."
+            />
+          )}
+        </View>
+      ) : null}
+
+      {/* Loaded State */}
+      {state === "loaded" && summary ? (
+        <ScrollView
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void load(true)}
+              tintColor={theme.colors.primary}
+            />
+          }
+        >
+          {/* Dues Status Card */}
+          <View className="mb-4 rounded-2xl bg-white p-5 shadow-sm">
+            <View className="flex-row items-center justify-between">
+              <AppText variant="label">{summary.studentName}</AppText>
+              <View
+                style={{
+                  backgroundColor: summary.dues === 0 ? "#16a34a" : "#dc2626",
+                }}
+                className="rounded-full px-3 py-1"
+              >
+                <AppText variant="caption" color="#ffffff">
+                  {summary.dues === 0 ? "No dues" : `Dues: ₹${summary.dues}`}
+                </AppText>
+              </View>
+            </View>
+
+            <View className="mt-3 flex-row items-baseline justify-between border-t border-slate-100 pt-3">
+              <View>
+                <AppText variant="caption" color="#64748b">
+                  Total Fees
+                </AppText>
+                <AppText variant="label" style={{ marginTop: 2 }}>
+                  ₹{summary.headsTotal}
+                </AppText>
+              </View>
+              <View>
+                <AppText variant="caption" color="#64748b">
+                  Total Paid
+                </AppText>
+                <AppText variant="label" color="#16a34a" style={{ marginTop: 2 }}>
+                  ₹{summary.paidTotal}
+                </AppText>
+              </View>
+              <View>
+                <AppText variant="caption" color="#64748b">
+                  Outstanding
+                </AppText>
+                <AppText
+                  variant="label"
+                  color={summary.dues === 0 ? "#16a34a" : "#dc2626"}
+                  style={{ marginTop: 2 }}
+                >
+                  ₹{summary.dues}
+                </AppText>
+              </View>
+            </View>
+          </View>
+
+          {/* Receipts List */}
+          <AppText variant="label" style={{ marginBottom: 8, color: "#64748b" }}>
+            Payment History
+          </AppText>
+
           {rows.length === 0 ? (
-            <EmptyState title="No receipts" detail="Payments will appear here after the school records them." />
+            <View className="rounded-2xl bg-white p-6 items-center">
+              <AppText variant="label">No payment receipts yet</AppText>
+              <AppText variant="caption" style={{ marginTop: 4, textAlign: "center" }}>
+                {summary.dues > 0
+                  ? `Outstanding dues: ₹${summary.dues}. Receipts will appear here once recorded by the school.`
+                  : "Receipts will appear here after the school records your payments."}
+              </AppText>
+            </View>
           ) : (
             rows.map((r) => (
               <Pressable
                 key={r.id}
                 disabled={!canReceipt || !r.receiptId}
                 onPress={() => r.receiptId && router.push(`/receipts/${r.receiptId}`)}
-                className="mb-2 rounded-2xl bg-white p-4"
+                className="mb-3 rounded-2xl bg-white p-4 shadow-sm"
               >
-                <AppText variant="label">{r.receiptNumber ?? "—"}</AppText>
-                <AppText variant="caption">
-                  {r.feeHeadName} · ₹{r.amount} · {r.method}
-                </AppText>
+                <View className="flex-row items-center justify-between">
+                  <AppText variant="label" color={theme.colors.primary}>
+                    {r.receiptNumber ?? "Receipt Pending"}
+                  </AppText>
+                  <PaymentMethodPill method={r.method} />
+                </View>
+
+                <View className="mt-2 flex-row items-center justify-between">
+                  <AppText variant="caption" color="#334155">
+                    {r.feeHeadName}
+                  </AppText>
+                  <AppText variant="label">₹{r.amount}</AppText>
+                </View>
+
+                <View className="mt-2 border-t border-slate-100 pt-2 flex-row justify-between items-center">
+                  <AppText variant="caption" color="#94a3b8">
+                    {new Date(r.createdAt).toLocaleDateString()}
+                  </AppText>
+                  {r.receiptId ? (
+                    <AppText variant="caption" color={theme.colors.primary}>
+                      View Receipt →
+                    </AppText>
+                  ) : null}
+                </View>
               </Pressable>
             ))
           )}
