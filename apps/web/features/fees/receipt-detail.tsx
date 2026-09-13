@@ -2,14 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
+import { toast } from "sonner";
 import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
 import { Skeleton } from "../../components/ui/skeleton";
+import { downloadReceiptPdf } from "./download-receipt-pdf";
 
 type Receipt = {
   id: string;
@@ -23,12 +28,27 @@ type Receipt = {
   note: string | null;
 };
 
+export function PaymentMethodBadge({ method }: { method: string }) {
+  const m = method.toLowerCase();
+  if (m === "cash") {
+    return <Badge variant="present">CASH</Badge>;
+  }
+  if (m === "upi") {
+    return <Badge variant="published">UPI</Badge>;
+  }
+  if (m === "bank") {
+    return <Badge variant="late">BANK</Badge>;
+  }
+  return <Badge variant="muted">{method.toUpperCase()}</Badge>;
+}
+
 export function ReceiptDetail({ receiptId }: { receiptId: string }) {
   const { branding, acl } = useAppBranding();
   const canRead = acl.permissions.includes(PERMISSIONS.RECEIPTS_READ);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
   const [message, setMessage] = useState("");
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -71,6 +91,23 @@ export function ReceiptDetail({ receiptId }: { receiptId: string }) {
     void load();
   }, [load]);
 
+  async function handleDownload() {
+    if (!receipt) return;
+    setDownloading(true);
+    try {
+      await downloadReceiptPdf(receipt.id, receipt.number);
+      toast.success("Receipt PDF downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Download failed");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
   if (state === "denied") {
     return <PermissionDenied detail={message || "You cannot view this receipt."} />;
   }
@@ -78,12 +115,35 @@ export function ReceiptDetail({ receiptId }: { receiptId: string }) {
     return <ErrorState message={message} onRetry={() => void load()} />;
   }
   if (state === "loading") {
-    return <Skeleton className="h-40 w-full" />;
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-5 w-32" />
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-8 w-60" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-28 rounded-lg" />
+              <Skeleton className="h-9 w-20 rounded-lg" />
+            </div>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
+      </div>
+    );
   }
   if (state === "empty" || !receipt) {
     return (
       <div>
-        <Link href="/fees" className="text-sm text-primary">
+        <Link href="/fees" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" />
           Back to fees
         </Link>
         <div className="mt-6">
@@ -97,41 +157,72 @@ export function ReceiptDetail({ receiptId }: { receiptId: string }) {
 
   return (
     <div>
-      <Link href="/fees" className="text-sm text-primary">
-        Back to fees
-      </Link>
-      <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
-        <p className="text-xs uppercase tracking-wide text-slate-400">{branding.schoolName}</p>
-        <p className="mt-1 font-display text-2xl font-semibold text-primary">{receipt.number}</p>
-        <dl className="mt-6 grid gap-3 text-sm md:grid-cols-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/fees" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          <ArrowLeft className="h-4 w-4" />
+          Back to fees
+        </Link>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handlePrint}>
+            <Printer className="mr-1.5 h-4 w-4" />
+            Print
+          </Button>
+          <Button onClick={() => void handleDownload()} disabled={downloading}>
+            <Download className="mr-1.5 h-4 w-4" />
+            {downloading ? "Downloading…" : "Download PDF"}
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-5">
           <div>
-            <dt className="text-slate-500">Student</dt>
-            <dd className="font-medium">
-              {receipt.studentName} · {receipt.admissionNumber}
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{branding.schoolName}</p>
+            <h2 className="mt-1 font-display text-2xl font-bold text-primary">{receipt.number}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <PaymentMethodBadge method={receipt.method} />
+            <Badge variant="present">OFFICIAL RECEIPT</Badge>
+          </div>
+        </div>
+
+        <dl className="mt-6 grid gap-4 text-sm md:grid-cols-2">
+          <div className="rounded-xl bg-slate-50 p-3.5">
+            <dt className="text-xs font-medium text-slate-500">Student</dt>
+            <dd className="mt-1 font-semibold text-ink">
+              {receipt.studentName}
+              <span className="ml-2 font-normal text-slate-500">({receipt.admissionNumber})</span>
             </dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Fee head</dt>
-            <dd className="font-medium">{receipt.feeHead}</dd>
+          <div className="rounded-xl bg-slate-50 p-3.5">
+            <dt className="text-xs font-medium text-slate-500">Fee Head</dt>
+            <dd className="mt-1 font-semibold text-ink">{receipt.feeHead}</dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Amount</dt>
-            <dd className="font-medium">₹{receipt.amount}</dd>
+          <div className="rounded-xl bg-slate-50 p-3.5">
+            <dt className="text-xs font-medium text-slate-500">Amount Paid</dt>
+            <dd className="mt-1 font-display text-xl font-bold text-primary">₹{receipt.amount}</dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Method</dt>
-            <dd className="font-medium uppercase">{receipt.method}</dd>
+          <div className="rounded-xl bg-slate-50 p-3.5">
+            <dt className="text-xs font-medium text-slate-500">Payment Method</dt>
+            <dd className="mt-1 flex items-center gap-2">
+              <PaymentMethodBadge method={receipt.method} />
+            </dd>
           </div>
-          <div>
-            <dt className="text-slate-500">Recorded</dt>
-            <dd className="font-medium">{when}</dd>
+          <div className="rounded-xl bg-slate-50 p-3.5">
+            <dt className="text-xs font-medium text-slate-500">Recorded At</dt>
+            <dd className="mt-1 font-medium text-ink">{when}</dd>
           </div>
           {receipt.note ? (
-            <div>
-              <dt className="text-slate-500">Note</dt>
-              <dd className="font-medium">{receipt.note}</dd>
+            <div className="rounded-xl bg-slate-50 p-3.5">
+              <dt className="text-xs font-medium text-slate-500">Note / Reference</dt>
+              <dd className="mt-1 font-medium text-ink">{receipt.note}</dd>
             </div>
-          ) : null}
+          ) : (
+            <div className="rounded-xl bg-slate-50 p-3.5">
+              <dt className="text-xs font-medium text-slate-500">Note / Reference</dt>
+              <dd className="mt-1 text-slate-400">—</dd>
+            </div>
+          )}
         </dl>
       </div>
     </div>
