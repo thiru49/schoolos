@@ -133,6 +133,17 @@ export function TimetableBoard() {
   }, [periods]);
   const weeklyHours = (weeklyMinutes / 60).toFixed(1);
 
+  // Derive academic year from existing branding source (receiptPrefix format e.g. ANA/26-27 -> 2026-27)
+  const academicYear = useMemo(() => {
+    if (branding.receiptPrefix && branding.receiptPrefix.includes("/")) {
+      const segment = branding.receiptPrefix.split("/")[1]?.trim();
+      if (segment) {
+        return /^\d{2}-\d{2}$/.test(segment) ? `20${segment}` : segment;
+      }
+    }
+    return "2026-27";
+  }, [branding.receiptPrefix]);
+
   // Consolidated Bell Slots for Print & Matrix
   const slots: BellSlot[] = useMemo(() => {
     const slotMap = new Map<string, BellSlot>();
@@ -514,6 +525,9 @@ export function TimetableBoard() {
       {activeSection ? (
         <TimetablePrint
           schoolName={branding.schoolName}
+          location={branding.location}
+          logoUrl={branding.logoUrl}
+          academicYear={academicYear}
           section={activeSection}
           periods={periods}
           slots={slots}

@@ -4,12 +4,23 @@ import { DAYS, type BellSlot, type Period, type Section } from "./timetable-type
 
 type TimetablePrintProps = {
   schoolName: string;
+  location?: string;
+  logoUrl?: string | null;
+  academicYear: string;
   section: Section;
   periods: Period[];
   slots: BellSlot[];
 };
 
-export function TimetablePrint({ schoolName, section, periods, slots }: TimetablePrintProps) {
+export function TimetablePrint({
+  schoolName,
+  location,
+  logoUrl,
+  academicYear,
+  section,
+  periods,
+  slots,
+}: TimetablePrintProps) {
   // Days Mon-Sat (1..6)
   const printDays = DAYS.slice(0, 6);
 
@@ -38,14 +49,25 @@ export function TimetablePrint({ schoolName, section, periods, slots }: Timetabl
 
       {/* Header */}
       <div className="border-b-2 border-slate-900 pb-4 text-center">
+        {logoUrl ? (
+          <div className="mb-2 flex justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={logoUrl} alt={schoolName} className="h-12 w-auto object-contain" />
+          </div>
+        ) : null}
         <h1 className="text-2xl font-bold uppercase tracking-wider text-slate-950">
           {schoolName || "SchoolOS Academy"}
         </h1>
-        <p className="mt-1 text-sm font-semibold uppercase text-slate-700">
+        {location ? (
+          <p className="mt-0.5 text-xs text-slate-600">
+            {location}
+          </p>
+        ) : null}
+        <p className="mt-2 text-sm font-semibold uppercase text-slate-800">
           Official Class Timetable — Section {section.label}
         </p>
         <div className="mt-2 flex justify-between text-xs text-slate-600">
-          <span>Academic Year: 2026–2027</span>
+          <span>Academic Year: {academicYear}</span>
           <span>Class & Section: {section.label}</span>
           <span>Generated: {new Date().toLocaleDateString()}</span>
         </div>
