@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
-import { PERMISSIONS } from "@schoolos/permissions";
+import { canReadHolidays, canManageHolidays } from "./communications-policy";
 import {
   Sun,
   Plus,
@@ -45,8 +45,8 @@ function formatHolidayDate(dateIso: string) {
 
 export function HolidaysBoard() {
   const { acl } = useAppBranding();
-  const canRead = acl.permissions.includes(PERMISSIONS.NOTICES_READ);
-  const canManage = acl.permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE);
+  const canRead = canReadHolidays(acl);
+  const canManage = canManageHolidays(acl);
 
   const [holidays, setHolidays] = useState<HolidayItem[]>([]);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
-import { PERMISSIONS } from "@schoolos/permissions";
+import { canReadNotices, canWriteNotices } from "./communications-policy";
 import {
   Plus,
   Search,
@@ -67,8 +67,8 @@ function audienceBadge(role: NoticeTargetRole) {
 
 export function NoticesBoard() {
   const { acl } = useAppBranding();
-  const canRead = acl.permissions.includes(PERMISSIONS.NOTICES_READ);
-  const canWrite = acl.permissions.includes(PERMISSIONS.NOTICES_WRITE);
+  const canRead = canReadNotices(acl);
+  const canWrite = canWriteNotices(acl);
 
   const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");

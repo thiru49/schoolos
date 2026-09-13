@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@schoolos/api-client";
-import { PERMISSIONS } from "@schoolos/permissions";
+import { canReadEvents, canWriteEvents } from "./communications-policy";
 import {
   Plus,
   Search,
@@ -49,8 +49,8 @@ function formatDateRange(startIso: string, endIso: string) {
 
 export function EventsBoard() {
   const { acl } = useAppBranding();
-  const canRead = acl.permissions.includes(PERMISSIONS.EVENTS_READ);
-  const canWrite = acl.permissions.includes(PERMISSIONS.EVENTS_WRITE);
+  const canRead = canReadEvents(acl);
+  const canWrite = canWriteEvents(acl);
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");

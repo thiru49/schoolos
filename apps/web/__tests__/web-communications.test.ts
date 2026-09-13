@@ -1,5 +1,14 @@
 import assert from "node:assert/strict";
 import { PERMISSIONS } from "@schoolos/permissions";
+import {
+  canReadNotices,
+  canWriteNotices,
+  canReadEvents,
+  canWriteEvents,
+  canReadHolidays,
+  canManageHolidays,
+  checkCommunicationsRouteAccess,
+} from "../features/communications/communications-policy";
 
 console.log("Starting COM-002 Web Communications Logic & Validation Tests...");
 
@@ -39,38 +48,41 @@ assert.equal(fullStaff.length, 3, "Full permissions see all 3 links");
 console.log("✓ Sidebar navigation & ACL logic tests passed");
 
 // ============================================================================
-// 2. Permission-Based Action Logic (Create / Edit / Delete / Publish)
+// 2. Permission & Scope Based Action Logic (Create / Edit / Delete / Publish)
 // ============================================================================
-function getActionPermissions(permissions: string[]) {
+function getActionPermissions(acl: { permissions: string[]; scopes: { type: string }[] }) {
   return {
     notices: {
-      canRead: permissions.includes(PERMISSIONS.NOTICES_READ),
-      canWrite: permissions.includes(PERMISSIONS.NOTICES_WRITE),
-      showCreateButton: permissions.includes(PERMISSIONS.NOTICES_WRITE),
-      showEditButton: permissions.includes(PERMISSIONS.NOTICES_WRITE),
-      showPublishToggle: permissions.includes(PERMISSIONS.NOTICES_WRITE),
-      showDeleteButton: permissions.includes(PERMISSIONS.NOTICES_WRITE),
+      canRead: canReadNotices(acl),
+      canWrite: canWriteNotices(acl),
+      showCreateButton: canWriteNotices(acl),
+      showEditButton: canWriteNotices(acl),
+      showPublishToggle: canWriteNotices(acl),
+      showDeleteButton: canWriteNotices(acl),
     },
     events: {
-      canRead: permissions.includes(PERMISSIONS.EVENTS_READ),
-      canWrite: permissions.includes(PERMISSIONS.EVENTS_WRITE),
-      showCreateButton: permissions.includes(PERMISSIONS.EVENTS_WRITE),
-      showEditButton: permissions.includes(PERMISSIONS.EVENTS_WRITE),
-      showPublishToggle: permissions.includes(PERMISSIONS.EVENTS_WRITE),
-      showDeleteButton: permissions.includes(PERMISSIONS.EVENTS_WRITE),
+      canRead: canReadEvents(acl),
+      canWrite: canWriteEvents(acl),
+      showCreateButton: canWriteEvents(acl),
+      showEditButton: canWriteEvents(acl),
+      showPublishToggle: canWriteEvents(acl),
+      showDeleteButton: canWriteEvents(acl),
     },
     holidays: {
-      canRead: permissions.includes(PERMISSIONS.NOTICES_READ),
-      canManage: permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE),
-      showAddButton: permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE),
-      showDeleteButton: permissions.includes(PERMISSIONS.HOLIDAYS_MANAGE),
+      canRead: canReadHolidays(acl),
+      canManage: canManageHolidays(acl),
+      showAddButton: canManageHolidays(acl),
+      showDeleteButton: canManageHolidays(acl),
       hasEditAction: false, // COM-001 has no PATCH for holidays; strictly no edit action
     },
   };
 }
 
 // Parent/Student (Read-only)
-const parentAcl = getActionPermissions([PERMISSIONS.NOTICES_READ, PERMISSIONS.EVENTS_READ]);
+const parentAcl = getActionPermissions({
+  permissions: [PERMISSIONS.NOTICES_READ, PERMISSIONS.EVENTS_READ],
+  scopes: [{ type: "children" }],
+});
 assert.equal(parentAcl.notices.canRead, true);
 assert.equal(parentAcl.notices.showCreateButton, false, "Parent cannot create notice");
 assert.equal(parentAcl.notices.showEditButton, false, "Parent cannot edit notice");
@@ -84,14 +96,32 @@ assert.equal(parentAcl.holidays.showAddButton, false, "Parent cannot add holiday
 assert.equal(parentAcl.holidays.showDeleteButton, false, "Parent cannot delete holiday");
 assert.equal(parentAcl.holidays.hasEditAction, false, "Holiday edit action does not exist in COM-001/COM-002");
 
-// Admin / Staff with write permissions
-const adminAcl = getActionPermissions([
-  PERMISSIONS.NOTICES_READ,
-  PERMISSIONS.NOTICES_WRITE,
-  PERMISSIONS.EVENTS_READ,
-  PERMISSIONS.EVENTS_WRITE,
-  PERMISSIONS.HOLIDAYS_MANAGE,
-]);
+// Section-scoped user with write permission (denied write without school scope)
+const sectionStaffAcl = getActionPermissions({
+  permissions: [
+    PERMISSIONS.NOTICES_READ,
+    PERMISSIONS.NOTICES_WRITE,
+    PERMISSIONS.EVENTS_READ,
+    PERMISSIONS.EVENTS_WRITE,
+    PERMISSIONS.HOLIDAYS_MANAGE,
+  ],
+  scopes: [{ type: "section" }],
+});
+assert.equal(sectionStaffAcl.notices.canWrite, false, "Write notices requires school scope");
+assert.equal(sectionStaffAcl.events.canWrite, false, "Write events requires school scope");
+assert.equal(sectionStaffAcl.holidays.canManage, false, "Manage holidays requires school scope");
+
+// Admin / Staff with write permissions AND school scope
+const adminAcl = getActionPermissions({
+  permissions: [
+    PERMISSIONS.NOTICES_READ,
+    PERMISSIONS.NOTICES_WRITE,
+    PERMISSIONS.EVENTS_READ,
+    PERMISSIONS.EVENTS_WRITE,
+    PERMISSIONS.HOLIDAYS_MANAGE,
+  ],
+  scopes: [{ type: "school" }],
+});
 assert.equal(adminAcl.notices.showCreateButton, true);
 assert.equal(adminAcl.notices.showEditButton, true);
 assert.equal(adminAcl.notices.showPublishToggle, true);
@@ -104,7 +134,15 @@ assert.equal(adminAcl.holidays.showAddButton, true);
 assert.equal(adminAcl.holidays.showDeleteButton, true);
 assert.equal(adminAcl.holidays.hasEditAction, false, "Holiday UI strictly omits edit action");
 
-console.log("✓ Permission-based action logic tests passed");
+// Route protection checks
+assert.equal(checkCommunicationsRouteAccess("/notices", { permissions: [PERMISSIONS.NOTICES_READ], scopes: [] }).allowed, true);
+assert.equal(checkCommunicationsRouteAccess("/notices", { permissions: [], scopes: [] }).allowed, false);
+assert.equal(checkCommunicationsRouteAccess("/events", { permissions: [PERMISSIONS.EVENTS_READ], scopes: [] }).allowed, true);
+assert.equal(checkCommunicationsRouteAccess("/events", { permissions: [], scopes: [] }).allowed, false);
+assert.equal(checkCommunicationsRouteAccess("/holidays", { permissions: [PERMISSIONS.NOTICES_READ], scopes: [] }).allowed, true);
+assert.equal(checkCommunicationsRouteAccess("/holidays", { permissions: [], scopes: [] }).allowed, false);
+
+console.log("✓ Permission-based action logic and policy helper tests passed");
 
 // ============================================================================
 // 3. Notice Draft State (must strictly use published === false)
