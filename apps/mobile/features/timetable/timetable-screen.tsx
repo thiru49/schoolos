@@ -105,8 +105,9 @@ export function TimetableScreen() {
       }
       setMessage("");
 
-      const scopeKey = isParent && activeStudentId ? `child_${activeStudentId}` : "student_self";
-      const expectedStudentId = activeStudentId ?? "self";
+      const userScopedSuffix = acl?.userId ? `user_${acl.userId}` : "self";
+      const scopeKey = isParent && activeStudentId ? `child_${activeStudentId}` : `student_${userScopedSuffix}`;
+      const expectedStudentId = isParent && activeStudentId ? activeStudentId : userScopedSuffix;
 
       try {
         const client = await api();
@@ -302,7 +303,7 @@ export function TimetableScreen() {
         >
           {allPeriods.length === 0 ? (
             <EmptyState
-              title="Timetable Not Published"
+              title="No Published Timetable"
               detail="No published timetable is available yet for this class. Please check back once school administration releases the schedule."
             />
           ) : dayPeriods.length === 0 ? (

@@ -35,8 +35,16 @@ export async function getCachedTimetable(
     const raw = await SecureStore.getItemAsync(`${CACHE_PREFIX}${scopeKey}`);
     if (!raw) return null;
     const data = JSON.parse(raw) as CachedTimetableData;
-    // Strict partition check: never return cached data for a different student/child
-    if (data.studentId !== expectedStudentId) {
+    // Strict partition and structural check:
+    // - data must exist and be an object
+    // - studentId must strictly match the active child/user to prevent cross-account/sibling leaks
+    // - periods must be a valid array
+    if (
+      !data ||
+      typeof data !== "object" ||
+      data.studentId !== expectedStudentId ||
+      !Array.isArray(data.periods)
+    ) {
       return null;
     }
     return data;
