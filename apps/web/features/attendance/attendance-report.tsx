@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
@@ -96,8 +98,14 @@ export function AttendanceReport() {
   }
 
   return (
-    <div>
-      <p className="font-tamil mb-3 text-sm text-slate-500" lang="ta">
+    <div className="space-y-4">
+      <Link
+        href="/reports"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors"
+      >
+        <ArrowLeft size={14} /> Back to Reports Hub
+      </Link>
+      <p className="font-tamil text-sm text-slate-500" lang="ta">
         வருகை அறிக்கை
       </p>
       <div className="flex flex-wrap gap-3">

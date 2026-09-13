@@ -106,6 +106,62 @@ async function main() {
   }
   const academicA = await login("arulneri", "academic_admin_test", "academic_admin");
 
+  // Create or verify a teacher user with school scope in arulneri to test authorization bypass attempts
+  let teacherSchoolScopeUser = await prisma.user.findFirst({
+    where: { schoolId: schoolA.id, identifier: "teacher_school_scope_test" },
+  });
+  if (!teacherSchoolScopeUser) {
+    const teacherRole = await prisma.role.findFirstOrThrow({
+      where: { schoolId: schoolA.id, code: ROLE_CODES.TEACHER },
+    });
+    teacherSchoolScopeUser = await prisma.user.create({
+      data: {
+        schoolId: schoolA.id,
+        identifier: "teacher_school_scope_test",
+        displayName: "Teacher School Scope Test",
+        passwordHash: hash,
+      },
+    });
+    await prisma.userRole.create({
+      data: { schoolId: schoolA.id, userId: teacherSchoolScopeUser.id, roleId: teacherRole.id },
+    });
+    await prisma.userScope.create({
+      data: { schoolId: schoolA.id, userId: teacherSchoolScopeUser.id, scopeType: "school" },
+    });
+  }
+  const teacherWithSchoolScope = await login("arulneri", "teacher_school_scope_test", "teacher");
+
+  // Create or verify a multi-role user: Teacher + Academic Admin
+  let teacherAcademicAdminUser = await prisma.user.findFirst({
+    where: { schoolId: schoolA.id, identifier: "teacher_academic_admin_test" },
+  });
+  if (!teacherAcademicAdminUser) {
+    const teacherRole = await prisma.role.findFirstOrThrow({
+      where: { schoolId: schoolA.id, code: ROLE_CODES.TEACHER },
+    });
+    const academicRole = await prisma.role.findFirstOrThrow({
+      where: { schoolId: schoolA.id, code: ROLE_CODES.ACADEMIC_ADMIN },
+    });
+    teacherAcademicAdminUser = await prisma.user.create({
+      data: {
+        schoolId: schoolA.id,
+        identifier: "teacher_academic_admin_test",
+        displayName: "Teacher Academic Admin Test",
+        passwordHash: hash,
+      },
+    });
+    await prisma.userRole.create({
+      data: { schoolId: schoolA.id, userId: teacherAcademicAdminUser.id, roleId: teacherRole.id },
+    });
+    await prisma.userRole.create({
+      data: { schoolId: schoolA.id, userId: teacherAcademicAdminUser.id, roleId: academicRole.id },
+    });
+    await prisma.userScope.create({
+      data: { schoolId: schoolA.id, userId: teacherAcademicAdminUser.id, scopeType: "school" },
+    });
+  }
+  const teacherAcademicAdmin = await login("arulneri", "teacher_academic_admin_test");
+
   // 2. /reports/available behavior
   const superAvailable = await (await authed(superAdminA.accessToken, "/reports/available")).json();
   const superCodes = superAvailable.reports.map((r: { code: string }) => r.code);
@@ -196,6 +252,47 @@ async function main() {
     const sRes = await authed(studentA.accessToken, ep);
     if (sRes.status !== 403) throw new Error(`Student expected 403 on ${ep}, got ${sRes.status}`);
   }
+
+  // Teacher Workload Role Authorization Tests:
+  // - Academic Admin + reports.progress + school scope => ALLOWED (200)
+  const academicWorkload = await authed(academicA.accessToken, "/reports/teachers/workload");
+  if (!academicWorkload.ok) {
+    throw new Error(`Academic Admin expected 200 on /reports/teachers/workload, got ${academicWorkload.status}`);
+  }
+  const academicWorkloadExport = await authed(academicA.accessToken, "/reports/teachers/workload/export");
+  if (!academicWorkloadExport.ok) {
+    throw new Error(`Academic Admin expected 200 on /reports/teachers/workload/export, got ${academicWorkloadExport.status}`);
+  }
+
+  // - Super Admin / School Admin => ALLOWED (200)
+  const superWorkload = await authed(superAdminA.accessToken, "/reports/teachers/workload");
+  if (!superWorkload.ok) {
+    throw new Error(`Super Admin expected 200 on /reports/teachers/workload, got ${superWorkload.status}`);
+  }
+
+  // - Teacher + reports.progress + school scope => STRICTLY DENIED with 403
+  const teacherBypasser = await authed(teacherWithSchoolScope.accessToken, "/reports/teachers/workload");
+  if (teacherBypasser.status !== 403) {
+    throw new Error(`Teacher with school scope expected 403 on /reports/teachers/workload, got ${teacherBypasser.status}`);
+  }
+  const teacherBypasserExport = await authed(teacherWithSchoolScope.accessToken, "/reports/teachers/workload/export");
+  if (teacherBypasserExport.status !== 403) {
+    throw new Error(`Teacher with school scope expected 403 on /reports/teachers/workload/export, got ${teacherBypasserExport.status}`);
+  }
+
+  // - Multi-role Teacher + Academic Admin + reports.progress + school scope => ALLOWED (200)
+  const multiRoleWorkload = await authed(teacherAcademicAdmin.accessToken, "/reports/teachers/workload");
+  if (!multiRoleWorkload.ok) {
+    throw new Error(`Multi-role Teacher + Academic Admin expected 200 on /reports/teachers/workload, got ${multiRoleWorkload.status}`);
+  }
+  const multiRoleWorkloadExport = await authed(teacherAcademicAdmin.accessToken, "/reports/teachers/workload/export");
+  if (!multiRoleWorkloadExport.ok) {
+    throw new Error(`Multi-role Teacher + Academic Admin expected 200 on /reports/teachers/workload/export, got ${multiRoleWorkloadExport.status}`);
+  }
+  console.log("PASS: Multi-role Teacher + Academic Admin with school scope is allowed on Teacher Workload");
+
+  console.log("PASS: Teacher Workload role-based authorization strictly denies teachers (even with school scope) and allows admins");
+
   console.log("PASS: Role and permission boundaries properly reject unauthorized roles with 403");
 
   // 4. Teacher Scope Enforcement in Database & Service Queries (Constraints 7 & 8)
