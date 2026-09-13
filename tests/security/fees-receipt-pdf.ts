@@ -98,6 +98,21 @@ async function main() {
   if (!isPdf(staffBody))
     throw new Error("staff PDF response does not start with %PDF-");
 
+  function contains(hay: string, term: string) {
+    if (hay.includes(term)) return true;
+    const hex = Buffer.from(term, "utf8").toString("hex").toLowerCase();
+    for (let i = 0; i < hex.length - 3; i += 4) {
+      if (!hay.toLowerCase().includes(hex.slice(i, i + 4))) return false;
+    }
+    return true;
+  }
+  const staffText = Buffer.from(staffBody).toString("latin1");
+  if (!contains(staffText, "Arul")) throw new Error("receipt PDF missing school name");
+  if (!contains(staffText, "Learning")) throw new Error("receipt PDF missing tagline");
+  if (!contains(staffText, "CREOVY")) throw new Error("receipt PDF missing poweredBy branding");
+  if (!contains(staffText, "Plus Jakarta")) throw new Error("receipt PDF missing display typography");
+  if (!contains(staffText, "Noto")) throw new Error("receipt PDF missing tamil typography");
+
   // ── 8. Parent: linked child receipt → 200 + valid PDF ──────────────────────
   const parentOk = await authed(parent.accessToken, `/receipts/${arunReceipt.receiptId}/pdf`);
   if (!parentOk.ok)
@@ -146,7 +161,15 @@ async function main() {
   if (crossBtoA.status !== 404)
     throw new Error(`cross-tenant B→A PDF expected 404, got ${crossBtoA.status}`);
 
-  console.log("PASS: FEE-007 receipt PDF access, scope, tenant isolation");
+  // ── 14. School B admin: own School B receipt → 200 + School B branding ──────
+  const schoolBPdf = await authed(adminB.accessToken, `/receipts/${recB.receiptId}/pdf`);
+  if (!schoolBPdf.ok) throw new Error("school-b admin own receipt PDF expected 200");
+  const schoolBText = Buffer.from(await schoolBPdf.arrayBuffer()).toString("latin1");
+  if (!contains(schoolBText, "School B")) throw new Error("school-b receipt missing school name");
+  if (!contains(schoolBText, "Isolation")) throw new Error("school-b receipt missing tagline");
+  if (contains(schoolBText, "Arul Neri")) throw new Error("school-b receipt leaked Arul Neri branding");
+
+  console.log("PASS: FEE-007/008 receipt PDF access, scope, branding, typography, tenant isolation");
 }
 
 main().catch((e) => {

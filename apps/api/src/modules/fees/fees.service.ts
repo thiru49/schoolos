@@ -168,8 +168,15 @@ export class FeesService {
       const school = await tx.school.findFirstOrThrow({ where: { id: acl.schoolId } });
       return {
         schoolName: school.name,
+        tagline: school.tagline,
+        location: school.location,
         logoUrl: school.logoUrl,
-        typography: school.typography as { families?: { display?: string; body?: string; tamil?: string } } | null,
+        poweredBy: school.poweredBy,
+        theme: school.theme as { primary?: string; accent?: string } | null,
+        typography: school.typography as {
+          preset?: string;
+          families?: { display?: string; body?: string; tamil?: string };
+        } | null,
         receiptNumber: receipt.number,
         createdAt: receipt.payment.createdAt.toISOString(),
         studentName: receipt.payment.student.fullName,

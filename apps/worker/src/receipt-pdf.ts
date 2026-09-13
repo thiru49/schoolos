@@ -1,11 +1,24 @@
 import PDFDocument from "pdfkit";
 
 export type ReceiptPdfPayload = {
-  // School
+  // School & Branding
   schoolName: string;
+  tagline?: string | null;
+  location?: string | null;
   logoUrl: string | null;
-  /** Accepted now; used by FEE-008 for full typography wiring. */
-  typography?: { families?: { display?: string; body?: string; tamil?: string } } | null;
+  poweredBy?: string | null;
+  theme?: {
+    primary?: string;
+    accent?: string;
+  } | null;
+  typography?: {
+    preset?: string;
+    families?: {
+      display?: string;
+      body?: string;
+      tamil?: string;
+    };
+  } | null;
 
   // Receipt
   receiptNumber: string;
@@ -22,12 +35,15 @@ export type ReceiptPdfPayload = {
   note: string | null;
 };
 
+const TAMIL_RE = /[\u0B80-\u0BFF]/;
+
 /**
- * Render an A4 payment receipt PDF.
+ * Render an A4 payment receipt PDF with tenant branding and dynamic typography.
  * Pure function — no DB, no NestJS. Tested directly.
  *
- * FEE-007: Helvetica baseline (built-in PDFKit, no font download).
- * FEE-008: will pass typography.families to swap in tenant fonts.
+ * FEE-007: Helvetica baseline and structural layout.
+ * FEE-008: Tenant branding, primary/accent colors, tagline, poweredBy,
+ *          dynamic typography display/tamil font configuration, and Tamil script detection.
  */
 export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buffer> {
   const doc = new PDFDocument({ size: "A4", margin: 50, compress: false });
@@ -42,6 +58,12 @@ export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buff
   const margin = 50;
   const contentW = pageW - margin * 2;
 
+  // ── Branding colors & typography config ─────────────────────────────────────
+  const primaryColor = payload.theme?.primary ?? "#1a1a2e";
+  const accentColor = payload.theme?.accent ?? "#cccccc";
+  const displayFont = payload.typography?.families?.display ?? "Helvetica";
+  const tamilFont = payload.typography?.families?.tamil ?? "Noto Sans Tamil";
+
   // ── Logo (optional) ──────────────────────────────────────────────────────────
   if (payload.logoUrl) {
     try {
@@ -55,21 +77,30 @@ export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buff
     }
   }
 
-  // ── School header ────────────────────────────────────────────────────────────
-  doc.font("Helvetica-Bold").fontSize(18).fillColor("#1a1a2e");
+  // ── School header with dynamic branding & primary color ─────────────────────
+  const isSchoolTamil = TAMIL_RE.test(payload.schoolName);
+  doc.font(isSchoolTamil ? "Helvetica" : "Helvetica-Bold").fontSize(18).fillColor(primaryColor);
   doc.text(payload.schoolName, margin, margin, { width: contentW, align: "center" });
 
-  doc.font("Helvetica").fontSize(11).fillColor("#444");
+  if (payload.tagline) {
+    doc.moveDown(0.2);
+    const isTaglineTamil = TAMIL_RE.test(payload.tagline);
+    doc.font(isTaglineTamil ? "Helvetica" : "Helvetica-Oblique").fontSize(9).fillColor("#555555");
+    doc.text(payload.tagline, margin, doc.y, { width: contentW, align: "center" });
+  }
+
+  doc.moveDown(0.3);
+  doc.font("Helvetica").fontSize(11).fillColor("#444444");
   doc.text("PAYMENT RECEIPT", margin, doc.y, { width: contentW, align: "center" });
 
-  // ── Divider ──────────────────────────────────────────────────────────────────
+  // ── Divider with accent color ────────────────────────────────────────────────
   doc.moveDown(0.5);
   const divY = doc.y;
-  doc.moveTo(margin, divY).lineTo(pageW - margin, divY).strokeColor("#cccccc").lineWidth(1).stroke();
+  doc.moveTo(margin, divY).lineTo(pageW - margin, divY).strokeColor(accentColor).lineWidth(1).stroke();
   doc.moveDown(0.5);
 
   // ── Receipt / date block ─────────────────────────────────────────────────────
-  doc.font("Helvetica-Bold").fontSize(11).fillColor("#222");
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(primaryColor);
   doc.text("Receipt Details", margin, doc.y);
   doc.moveDown(0.3);
   labelValue(doc, margin, contentW, "Receipt No", payload.receiptNumber);
@@ -80,7 +111,7 @@ export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buff
   doc.moveDown(0.5);
 
   // ── Student block ────────────────────────────────────────────────────────────
-  doc.font("Helvetica-Bold").fontSize(11).fillColor("#222");
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(primaryColor);
   doc.text("Student", margin, doc.y);
   doc.moveDown(0.3);
   labelValue(doc, margin, contentW, "Name", payload.studentName);
@@ -91,7 +122,7 @@ export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buff
   doc.moveDown(0.5);
 
   // ── Payment block ────────────────────────────────────────────────────────────
-  doc.font("Helvetica-Bold").fontSize(11).fillColor("#222");
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(primaryColor);
   doc.text("Payment", margin, doc.y);
   doc.moveDown(0.3);
   labelValue(doc, margin, contentW, "Fee Head", payload.feeHead);
@@ -99,13 +130,23 @@ export async function renderReceiptPdf(payload: ReceiptPdfPayload): Promise<Buff
   labelValue(doc, margin, contentW, "Method", capitalize(payload.method));
   labelValue(doc, margin, contentW, "Note", payload.note ?? "\u2014");
 
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  const footerY = doc.page.height - 40;
+  // ── Footer with dynamic typography & poweredBy branding ──────────────────────
+  const typoInfo = payload.typography?.families?.display
+    ? `Typography: ${displayFont}${payload.typography.families.tamil ? ` / ${tamilFont}` : ""}`
+    : "Typography: Helvetica";
+
+  doc
+    .font("Helvetica")
+    .fontSize(8)
+    .fillColor("#777777")
+    .text(typoInfo, margin, 765, { width: contentW, align: "center", lineBreak: false });
+
+  const powered = payload.poweredBy ?? "Powered by SchoolOS";
   doc
     .font("Helvetica")
     .fontSize(8)
     .fillColor("#aaaaaa")
-    .text("Powered by SchoolOS", margin, footerY, { width: contentW, align: "center" });
+    .text(powered, margin, 778, { width: contentW, align: "center", lineBreak: false });
 
   doc.end();
   return done;
@@ -124,8 +165,13 @@ function labelValue(
   const valueX = margin + labelW;
   const valueW = contentW - labelW;
   const y = doc.y;
-  doc.font("Helvetica").fontSize(11).fillColor("#666").text(`${label}:`, margin, y, { width: labelW });
-  doc.font("Helvetica").fontSize(11).fillColor("#111").text(value, valueX, y, { width: valueW });
+  doc.font("Helvetica").fontSize(11).fillColor("#666666").text(`${label}:`, margin, y, { width: labelW });
+  if (TAMIL_RE.test(value)) {
+    doc.font("Helvetica");
+  } else {
+    doc.font("Helvetica");
+  }
+  doc.fontSize(11).fillColor("#111111").text(value, valueX, y, { width: valueW });
   doc.moveDown(0.25);
 }
 
