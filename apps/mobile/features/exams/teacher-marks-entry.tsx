@@ -79,6 +79,10 @@ export function TeacherMarksEntry() {
     }
   }
 
+  const allDrafted =
+    rows.length > 0 && rows.every((r) => r.score != null && r.status !== "published");
+  const alreadySubmitted = rows.some((r) => r.status === "submitted" || r.status === "published");
+
   async function saveDraft() {
     if (!examId) return;
     try {
@@ -151,7 +155,7 @@ export function TeacherMarksEntry() {
               {message}
             </AppText>
           ) : null}
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 180 }}>
             {rows.map((r) => (
               <View key={r.studentId} className="mb-2 rounded-2xl bg-white p-3">
                 <AppText variant="label">{r.fullName}</AppText>
@@ -180,6 +184,23 @@ export function TeacherMarksEntry() {
           </ScrollView>
           <View className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-3" style={{ backgroundColor: theme.colors.background }}>
             <AppButton label="Save draft" onPress={() => void saveDraft()} />
+            {allDrafted && !alreadySubmitted ? (
+              <View className="mt-2">
+                <AppButton
+                  label="Submit for publish"
+                  variant="secondary"
+                  onPress={async () => {
+                    if (!examId) return;
+                    try {
+                      await (await api()).exams.submit(examId);
+                      await openExam(examId);
+                    } catch (e) {
+                      mapError(e);
+                    }
+                  }}
+                />
+              </View>
+            ) : null}
           </View>
         </>
       ) : null}

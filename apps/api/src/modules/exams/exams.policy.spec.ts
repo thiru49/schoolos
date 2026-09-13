@@ -28,6 +28,11 @@ describe("ExamsPolicy", () => {
     expect(() => policy.assertPublish(teacher())).toThrow(ForbiddenException);
   });
 
+  it("allows teacher submit on 8-A and denies 9-B", () => {
+    expect(() => policy.assertSubmitSection(teacher(), "sec-8a", "c8")).not.toThrow();
+    expect(() => policy.assertSubmitSection(teacher(), "sec-9b", "c9")).toThrow(ForbiddenException);
+  });
+
   it("denies a student drafting marks", () => {
     const student: RequestAcl = {
       userId: "st1",
