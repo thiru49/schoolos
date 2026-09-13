@@ -14,13 +14,13 @@ export class ReportsPolicy {
   }
 
   assertCanAccessTeacherWorkload(acl: RequestAcl): void {
-    if (acl.roles.includes(ROLE_CODES.TEACHER)) {
-      throw new ForbiddenException("Teachers are not authorized to access the teacher workload report");
-    }
     const hasAdminRole = acl.roles.some((r) =>
       ([ROLE_CODES.SCHOOL_SUPER_ADMIN, ROLE_CODES.SCHOOL_ADMIN, ROLE_CODES.ACADEMIC_ADMIN] as string[]).includes(r),
     );
     if (!hasAdminRole) {
+      if (acl.roles.includes(ROLE_CODES.TEACHER)) {
+        throw new ForbiddenException("Teachers are not authorized to access the teacher workload report");
+      }
       throw new ForbiddenException("Teacher workload report requires administrative role");
     }
     if (!acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS)) {

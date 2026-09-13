@@ -282,7 +282,41 @@ assert.equal(
   "Teachers are not authorized to view the teacher workload report"
 );
 
-// 3e. Student List canonical permission enforcement:
+// 3e. Multi-role Teacher + Academic Admin (or School Admin / Super Admin) => ALLOWED
+const teacherAcademicAdminAcl: UserAcl = {
+  roles: ["teacher", "academic_admin"],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS, PERMISSIONS.REPORTS_ATTENDANCE],
+  scopes: [{ type: "school" }],
+};
+assert.equal(
+  checkDirectRouteAccess("/reports/teachers", teacherAcademicAdminAcl).allowed,
+  true,
+  "Multi-role Teacher + Academic Admin allowed on /reports/teachers"
+);
+
+const teacherSuperAdminAcl: UserAcl = {
+  roles: ["teacher", "school_super_admin"],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS, PERMISSIONS.REPORTS_FEES, PERMISSIONS.REPORTS_ATTENDANCE],
+  scopes: [{ type: "school" }],
+};
+assert.equal(
+  checkDirectRouteAccess("/reports/teachers", teacherSuperAdminAcl).allowed,
+  true,
+  "Multi-role Teacher + Super Admin allowed on /reports/teachers"
+);
+
+const teacherSchoolAdminAcl: UserAcl = {
+  roles: ["teacher", "school_admin"],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS, PERMISSIONS.REPORTS_FEES, PERMISSIONS.REPORTS_ATTENDANCE],
+  scopes: [{ type: "school" }],
+};
+assert.equal(
+  checkDirectRouteAccess("/reports/teachers", teacherSchoolAdminAcl).allowed,
+  true,
+  "Multi-role Teacher + School Admin allowed on /reports/teachers"
+);
+
+// 3f. Student List canonical permission enforcement:
 // - User with reports.progress => ALLOWED
 assert.equal(checkDirectRouteAccess("/reports/students", teacherAcl).allowed, true, "Teacher with reports.progress allowed on /reports/students");
 assert.equal(checkDirectRouteAccess("/reports/students", academicAdminAcl).allowed, true, "Admin with reports.progress allowed on /reports/students");
