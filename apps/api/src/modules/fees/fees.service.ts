@@ -42,6 +42,9 @@ export class FeesService {
 
   async list(acl: RequestAcl, studentId?: string) {
     this.policy.assertRead(acl);
+    if (studentId && !z.string().uuid().safeParse(studentId).success) {
+      throw new BadRequestException("studentId is required");
+    }
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
       const linked = await this.linkedChildIds(tx, acl);
       let target = studentId;
