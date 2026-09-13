@@ -32,6 +32,7 @@ const NAV = [
   { href: "/exams", label: "Exams & Marks", icon: ClipboardList, permission: PERMISSIONS.EXAMS_READ },
   { href: "/fees", label: "Fees", icon: Banknote, permission: PERMISSIONS.FEES_READ },
   { href: "/reports/attendance", label: "Reports", icon: FileBarChart, permission: PERMISSIONS.REPORTS_ATTENDANCE },
+  { href: "/reports/progress", label: "Report cards", icon: ClipboardList, permission: PERMISSIONS.REPORTS_PROGRESS },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
 ];
 

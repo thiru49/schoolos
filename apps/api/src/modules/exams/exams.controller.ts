@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Put, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { PermissionGuard } from "../../common/guards/permission.guard";
@@ -32,6 +33,32 @@ export class ExamsController {
   @RequirePermission(PERMISSIONS.MARKS_PUBLISH)
   queue(@CurrentUser() acl: RequestAcl) {
     return this.exams.queue(acl);
+  }
+
+  @Get("report-card")
+  reportCard(@CurrentUser() acl: RequestAcl, @Query("studentId") studentId?: string) {
+    return this.exams.reportCard(acl, studentId);
+  }
+
+  @Post("report-card/pdf")
+  enqueuePdf(@CurrentUser() acl: RequestAcl, @Body() body: { studentId?: string }) {
+    return this.exams.enqueueReportCardPdf(acl, body?.studentId);
+  }
+
+  @Get("report-card/pdf")
+  async downloadPdf(
+    @CurrentUser() acl: RequestAcl,
+    @Query("studentId") studentId: string | undefined,
+    @Res() res: Response,
+  ) {
+    const file = await this.exams.reportCardPdfFile(acl, studentId);
+    if (!file) {
+      res.status(202).json({ status: "pending" });
+      return;
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="report-card.pdf"');
+    res.send(file);
   }
 
   @Get(":id")

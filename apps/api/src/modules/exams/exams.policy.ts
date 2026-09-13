@@ -56,4 +56,27 @@ export class ExamsPolicy {
       throw new ForbiddenException("Marks publish requires school scope");
     }
   }
+
+  assertViewReportCard(
+    acl: RequestAcl,
+    student: { id: string; sectionId: string; classId: string },
+  ) {
+    const staff = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
+    const reader = acl.permissions.includes(PERMISSIONS.MARKS_READ);
+    if (!staff && !reader) {
+      throw new ForbiddenException("Missing permission to view report card");
+    }
+    if (staff) {
+      if (acl.scopes.some((s) => s.type === "school")) return;
+      if (acl.scopes.some((s) => s.type === "section" && s.sectionId === student.sectionId)) return;
+      if (acl.scopes.some((s) => s.type === "class" && s.classId === student.classId)) return;
+      if (!reader) throw new ForbiddenException("You cannot view this report card");
+    }
+    if (reader) {
+      if (acl.scopes.some((s) => s.type === "self" && s.studentId === student.id)) return;
+      if (acl.scopes.some((s) => s.type === "children" && s.studentId === student.id)) return;
+      if (staff) throw new ForbiddenException("You cannot view this report card");
+      throw new ForbiddenException("You cannot view this report card");
+    }
+  }
 }

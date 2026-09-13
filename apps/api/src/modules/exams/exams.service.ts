@@ -1,20 +1,40 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+} from "@nestjs/common";
+import { Queue } from "bullmq";
+import { z } from "zod";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { examCreateSchema, marksDraftSchema } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ExamsPolicy } from "./exams.policy";
+import { reportCardPdfPath } from "./report-card-path";
+
+const studentIdSchema = z.string().uuid();
 
 function parseDate(iso: string): Date {
   return new Date(`${iso}T00:00:00.000Z`);
 }
 
 @Injectable()
-export class ExamsService {
+export class ExamsService implements OnModuleDestroy {
+  private pdfQueue: Queue | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly policy: ExamsPolicy,
   ) {}
+
+  private getPdfQueue() {
+    if (this.pdfQueue) return this.pdfQueue;
+    const url = process.env.REDIS_URL ?? "redis://localhost:6379";
+    this.pdfQueue = new Queue("pdf", { connection: { url } });
+    return this.pdfQueue;
+  }
 
   list(acl: RequestAcl, sectionId?: string, studentId?: string) {
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
@@ -235,6 +255,86 @@ export class ExamsService {
       });
       if (result.count === 0) throw new BadRequestException("No submitted marks to publish");
       return { published: result.count };
+    });
+  }
+
+  async reportCard(acl: RequestAcl, studentIdQuery?: string) {
+    const studentId = await this.resolveReportStudentId(acl, studentIdQuery);
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const student = await tx.student.findFirst({
+        where: { id: studentId, schoolId: acl.schoolId },
+        include: { class: { include: { academicYear: true } }, section: true },
+      });
+      if (!student) throw new NotFoundException("Student not found");
+      this.policy.assertViewReportCard(acl, {
+        id: student.id,
+        sectionId: student.sectionId,
+        classId: student.classId,
+      });
+      const yearId = student.class.academicYearId;
+      const marks = await tx.mark.findMany({
+        where: {
+          schoolId: acl.schoolId,
+          studentId: student.id,
+          status: "published",
+          exam: { class: { academicYearId: yearId } },
+        },
+        include: { exam: { include: { subject: true, section: { include: { class: true } } } } },
+        orderBy: { exam: { examDate: "asc" } },
+      });
+      const school = await tx.school.findFirstOrThrow({ where: { id: acl.schoolId } });
+      return {
+        schoolName: school.name,
+        logoUrl: school.logoUrl,
+        typography: school.typography,
+        studentId: student.id,
+        studentName: student.fullName,
+        classSection: `${student.class.name}-${student.section.name}`,
+        academicYear: student.class.academicYear.name,
+        rows: marks.map((m) => ({
+          exam: m.exam.name,
+          subject: m.exam.subject.name,
+          score: m.score,
+          maxScore: m.exam.maxScore,
+        })),
+      };
+    });
+  }
+
+  async enqueueReportCardPdf(acl: RequestAcl, studentIdQuery?: string) {
+    const payload = await this.reportCard(acl, studentIdQuery);
+    try {
+      await this.getPdfQueue().add(
+        "report-card",
+        { schoolId: acl.schoolId, studentId: payload.studentId, payload },
+        { removeOnComplete: true, attempts: 3, backoff: { type: "exponential", delay: 2000 } },
+      );
+    } catch {
+      throw new BadRequestException("PDF queue unavailable");
+    }
+    return { queued: true, studentId: payload.studentId };
+  }
+
+  async reportCardPdfFile(acl: RequestAcl, studentIdQuery?: string) {
+    const payload = await this.reportCard(acl, studentIdQuery);
+    const fs = await import("node:fs/promises");
+    try {
+      return await fs.readFile(reportCardPdfPath(acl.schoolId, payload.studentId));
+    } catch {
+      return null;
+    }
+  }
+
+  async onModuleDestroy() {
+    await this.pdfQueue?.close();
+  }
+
+  private async resolveReportStudentId(acl: RequestAcl, studentIdQuery?: string) {
+    if (studentIdQuery) return studentIdSchema.parse(studentIdQuery);
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const me = await tx.student.findFirst({ where: { schoolId: acl.schoolId, userId: acl.userId } });
+      if (me) return me.id;
+      throw new BadRequestException("studentId is required");
     });
   }
 

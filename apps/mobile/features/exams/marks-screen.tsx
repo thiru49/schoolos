@@ -87,6 +87,9 @@ export function MarksScreen() {
           Marks
         </AppText>
         <AppText variant="caption">{examName}</AppText>
+        <View className="mt-3">
+          <AppButton label="Report card" variant="secondary" onPress={() => router.push("/report-card")} />
+        </View>
       </View>
       {isParent ? (
         <View className="mt-3 px-4">
