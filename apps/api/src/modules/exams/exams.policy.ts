@@ -12,13 +12,20 @@ export class ExamsPolicy {
     }
   }
 
-  assertReadSection(acl: RequestAcl, sectionId: string, classId: string) {
+  assertReadSection(
+    acl: RequestAcl,
+    sectionId: string,
+    classId: string,
+    opts?: { selfInSection?: boolean; childInSection?: boolean },
+  ) {
     if (!acl.permissions.includes(PERMISSIONS.EXAMS_READ)) {
       throw new ForbiddenException("Missing permission exams.read");
     }
     if (acl.scopes.some((s) => s.type === "school")) return;
     if (acl.scopes.some((s) => s.type === "section" && s.sectionId === sectionId)) return;
     if (acl.scopes.some((s) => s.type === "class" && s.classId === classId)) return;
+    if (opts?.selfInSection) return;
+    if (opts?.childInSection) return;
     throw new ForbiddenException("You cannot read this exam");
   }
 

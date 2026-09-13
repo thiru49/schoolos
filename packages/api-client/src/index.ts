@@ -250,6 +250,18 @@ export function createApiClient(options: {
           }[]
         >(`/exams?${q.toString()}`);
       },
+      get: (id: string) =>
+        request<{
+          id: string;
+          name: string;
+          examDate: string;
+          maxScore: number;
+          subjectName: string;
+          label: string;
+          sectionId: string;
+          classId: string;
+          subjectId: string;
+        }>(`/exams/${id}`),
       create: (body: {
         classId: string;
         sectionId: string;

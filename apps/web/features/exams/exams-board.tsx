@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { ApiError } from "@schoolos/api-client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
@@ -10,6 +11,9 @@ import { todayIso } from "../../lib/utils";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { EmptyState } from "../../components/states/empty-state";
+import { ErrorState } from "../../components/states/error-state";
+import { PermissionDenied } from "../../components/states/permission-denied";
+import { Skeleton } from "../../components/ui/skeleton";
 
 type Section = { id: string; classId: string; label: string };
 type Subject = { id: string; name: string };
@@ -23,14 +27,36 @@ export function ExamsBoard() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [sectionId, setSectionId] = useState("");
   const [rows, setRows] = useState<Exam[]>([]);
+  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [examDate, setExamDate] = useState(todayIso());
   const [maxScore, setMaxScore] = useState("100");
   const [subjectId, setSubjectId] = useState("");
 
-  async function load() {
-    setRows(await api().exams.list({ sectionId: sectionId || undefined }));
-  }
+  const load = useCallback(async () => {
+    if (!sectionId) return;
+    setState("loading");
+    setMessage("");
+    try {
+      const list = await api().exams.list({ sectionId });
+      setRows(list);
+      setState(list.length === 0 ? "empty" : "loaded");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403) {
+        setState("denied");
+        setMessage(e.message);
+        return;
+      }
+      if (e instanceof TypeError) {
+        setState("offline");
+        setMessage("You appear to be offline.");
+        return;
+      }
+      setState("error");
+      setMessage(e instanceof Error ? e.message : "Failed to load exams");
+    }
+  }, [sectionId]);
 
   useEffect(() => {
     api()
@@ -39,7 +65,15 @@ export function ExamsBoard() {
         setSections(list);
         if (list[0]) setSectionId(list[0].id);
       })
-      .catch(() => undefined);
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 403) {
+          setState("denied");
+          setMessage(e.message);
+        } else {
+          setState("error");
+          setMessage(e instanceof Error ? e.message : "Failed to load sections");
+        }
+      });
     api()
       .subjects.list()
       .then((list) => {
@@ -51,9 +85,13 @@ export function ExamsBoard() {
 
   useEffect(() => {
     if (sectionId) void load();
-  }, [sectionId]);
+  }, [sectionId, load]);
 
   const section = sections.find((s) => s.id === sectionId);
+
+  if (state === "denied") {
+    return <PermissionDenied detail={message || "You cannot view exams for this section."} />;
+  }
 
   return (
     <div>
@@ -107,11 +145,23 @@ export function ExamsBoard() {
           </Button>
         </div>
       ) : null}
-      {rows.length === 0 ? (
+
+      {state === "loading" ? (
+        <div className="mt-6">
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : null}
+      {state === "offline" || state === "error" ? (
+        <div className="mt-6">
+          <ErrorState message={message} onRetry={() => void load()} />
+        </div>
+      ) : null}
+      {state === "empty" ? (
         <div className="mt-6">
           <EmptyState title="No exams" detail="Create an exam for this section first." />
         </div>
-      ) : (
+      ) : null}
+      {state === "loaded" ? (
         <table className="mt-6 w-full overflow-hidden rounded-2xl bg-white text-left text-sm shadow-sm">
           <thead className="bg-primary text-white">
             <tr>
@@ -138,7 +188,7 @@ export function ExamsBoard() {
             ))}
           </tbody>
         </table>
-      )}
+      ) : null}
     </div>
   );
 }
