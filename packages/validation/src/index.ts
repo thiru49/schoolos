@@ -143,6 +143,14 @@ export const timetablePublishSchema = z.object({
   sectionId: z.string().uuid(),
 });
 
+export const timetablePeriodUpdateSchema = z.object({
+  subjectId: z.string().uuid().optional(),
+  teacherId: z.string().uuid().optional(),
+  weekday: z.number().int().min(1).max(7).optional(),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+});
+
 export const examCreateSchema = z.object({
   classId: z.string().uuid(),
   sectionId: z.string().uuid(),

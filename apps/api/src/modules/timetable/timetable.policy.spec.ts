@@ -28,4 +28,13 @@ describe("TimetablePolicy", () => {
   it("denies teacher write", () => {
     expect(() => policy.assertWrite(acl({}))).toThrow(ForbiddenException);
   });
+
+  it("allows school-scope write", () => {
+    const admin = acl({
+      roles: ["academic_admin"],
+      permissions: [PERMISSIONS.TIMETABLE_WRITE, PERMISSIONS.TIMETABLE_READ],
+      scopes: [{ type: "school" }],
+    });
+    expect(() => policy.assertWrite(admin)).not.toThrow();
+  });
 });
