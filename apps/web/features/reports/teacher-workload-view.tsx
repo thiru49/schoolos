@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Download, RefreshCw } from "lucide-react";
-import { PERMISSIONS } from "@schoolos/permissions";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
@@ -15,6 +14,7 @@ import { EmptyState } from "../../components/states/empty-state";
 import { ErrorState } from "../../components/states/error-state";
 import { PermissionDenied } from "../../components/states/permission-denied";
 import { downloadReportCsv } from "./download-csv";
+import { checkTeacherWorkloadAccess } from "./reports-policy";
 
 type TeacherWorkloadData = {
   summary: {
@@ -34,20 +34,8 @@ type TeacherWorkloadData = {
 
 export function TeacherWorkloadView() {
   const { acl } = useAppBranding();
-  const isTeacher =
-    acl.roles.includes("teacher") &&
-    !acl.roles.some((r) =>
-      ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-    );
-  const hasAdminRole = acl.roles.some((r) =>
-    ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-  );
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAccess =
-    !isTeacher &&
-    hasAdminRole &&
-    hasSchoolScope &&
-    acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
+  const workloadAccess = checkTeacherWorkloadAccess(acl);
+  const canAccess = workloadAccess.allowed;
 
   const [teacherId, setTeacherId] = useState("");
   const [data, setData] = useState<TeacherWorkloadData | null>(null);
@@ -93,7 +81,7 @@ export function TeacherWorkloadView() {
     }
   }
 
-  if (isTeacher) {
+  if (workloadAccess.isTeacherOnly) {
     return <PermissionDenied detail="Teachers are not authorized to view the teacher workload report." />;
   }
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Download, RefreshCw, Layers, UserCheck } from "lucide-react";
-import { PERMISSIONS } from "@schoolos/permissions";
+import { canAccessProgress, hasSchoolScope } from "./reports-policy";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
@@ -42,8 +42,8 @@ type ProgressReportData = {
 
 export function ProgressReportView() {
   const { acl } = useAppBranding();
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAccess = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
+  const schoolScoped = hasSchoolScope(acl);
+  const canAccess = canAccessProgress(acl);
 
   const allowedSectionIds = acl.scopes
     .filter((s) => s.type === "section" && Boolean(s.sectionId))
@@ -61,17 +61,17 @@ export function ProgressReportView() {
   const loadSections = useCallback(async () => {
     try {
       const list = await api().academics.sections();
-      const filtered = hasSchoolScope
+      const filtered = schoolScoped
         ? list
         : list.filter((s) => allowedSectionIds.includes(s.id));
       setSections(filtered);
-      if (!hasSchoolScope && filtered[0]) {
+      if (!schoolScoped && filtered[0]) {
         setSectionId(filtered[0].id);
       }
     } catch {
       // Non-blocking
     }
-  }, [hasSchoolScope, allowedSectionIds]);
+  }, [schoolScoped, allowedSectionIds]);
 
   const loadExams = useCallback(async () => {
     try {
@@ -186,7 +186,7 @@ export function ProgressReportView() {
               value={sectionId}
               onChange={(e) => setSectionId(e.target.value)}
             >
-              {hasSchoolScope ? <option value="">All Classes & Sections</option> : null}
+              {schoolScoped ? <option value="">All Classes & Sections</option> : null}
               {sections.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}

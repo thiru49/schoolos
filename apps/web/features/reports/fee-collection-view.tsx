@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Download, RefreshCw } from "lucide-react";
 import { ApiError } from "@schoolos/api-client";
-import { PERMISSIONS } from "@schoolos/permissions";
+import { canAccessFees } from "./reports-policy";
 import { toast } from "sonner";
 import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
@@ -50,8 +50,7 @@ type FeeReportData = {
 
 export function FeeCollectionView() {
   const { acl } = useAppBranding();
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAccess = acl.permissions.includes(PERMISSIONS.REPORTS_FEES) && hasSchoolScope;
+  const canAccess = canAccessFees(acl);
 
   const [sections, setSections] = useState<Section[]>([]);
   const [sectionId, setSectionId] = useState("");

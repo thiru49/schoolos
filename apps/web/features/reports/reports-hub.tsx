@@ -12,7 +12,13 @@ import {
   Download,
   FileSpreadsheet,
 } from "lucide-react";
-import { PERMISSIONS } from "@schoolos/permissions";
+import {
+  canAccessAttendance,
+  canAccessProgress,
+  canAccessFees,
+  canAccessStudentList,
+  canAccessTeacherWorkload,
+} from "./reports-policy";
 import { useAppBranding } from "../../lib/branding-context";
 import { Card, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -25,21 +31,11 @@ import { toast } from "sonner";
 export function ReportsHub() {
   const { branding, acl } = useAppBranding();
 
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAttendance = acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE);
-  const canProgress = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
-  const canFees = acl.permissions.includes(PERMISSIONS.REPORTS_FEES) && hasSchoolScope;
-  const isTeacher =
-    acl.roles.includes("teacher") &&
-    !acl.roles.some((r) =>
-      ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-    );
-  const hasAdminRole = acl.roles.some((r) =>
-    ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-  );
-  const canTeacherWorkload =
-    !isTeacher && hasAdminRole && canProgress && hasSchoolScope;
-  const canStudentList = canProgress;
+  const canAttendance = canAccessAttendance(acl);
+  const canProgress = canAccessProgress(acl);
+  const canFees = canAccessFees(acl);
+  const canTeacherWorkload = canAccessTeacherWorkload(acl);
+  const canStudentList = canAccessStudentList(acl);
 
   // If user has none of the report permissions, show permission denied
   if (!canAttendance && !canProgress && !canFees) {

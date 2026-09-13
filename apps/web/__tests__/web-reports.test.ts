@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { PERMISSIONS } from "@schoolos/permissions";
 import type { PermissionCode, RoleCode, ScopeType } from "@schoolos/types";
+import {
+  canAccessAttendance,
+  canAccessProgress,
+  canAccessFees,
+  canAccessStudentList,
+  canAccessTeacherWorkload,
+  checkTeacherWorkloadAccess,
+  checkReportRouteAccess,
+} from "../features/reports/reports-policy";
 
 console.log("Starting REPORT-002 Web Reports Unit & Logic Tests...\n");
 
@@ -33,21 +42,21 @@ const NAV_REPORTS_ITEM = {
 };
 
 function canSeeReportsInSidebar(acl: UserAcl): boolean {
-  if (!NAV_REPORTS_ITEM.permission) return true;
   if (Array.isArray(NAV_REPORTS_ITEM.permission)) {
     return NAV_REPORTS_ITEM.permission.some((p) => acl.permissions.includes(p));
   }
   return acl.permissions.includes(NAV_REPORTS_ITEM.permission);
 }
 
-function isSidebarItemActive(itemHref: string, currentPathname: string): boolean {
-  return (
-    currentPathname === itemHref ||
-    (itemHref !== "/dashboard" && currentPathname.startsWith(itemHref + "/"))
-  );
+function isSidebarItemActive(itemHref: string, pathname: string): boolean {
+  if (pathname === itemHref) return true;
+  if (itemHref !== "/" && itemHref !== "/dashboard" && pathname.startsWith(itemHref + "/")) {
+    return true;
+  }
+  return false;
 }
 
-// 1a. Sidebar visibility for various roles
+// 1a. Sidebar role visibility
 const superAdminAcl: UserAcl = {
   roles: ["school_super_admin"],
   permissions: [
@@ -68,28 +77,28 @@ assert.equal(canSeeReportsInSidebar(accountsAdminAcl), true, "Accounts Admin see
 
 const academicAdminAcl: UserAcl = {
   roles: ["academic_admin"],
-  permissions: [PERMISSIONS.REPORTS_ATTENDANCE, PERMISSIONS.REPORTS_PROGRESS],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS, PERMISSIONS.REPORTS_ATTENDANCE],
   scopes: [{ type: "school" }],
 };
 assert.equal(canSeeReportsInSidebar(academicAdminAcl), true, "Academic Admin sees Reports in sidebar");
 
 const teacherAcl: UserAcl = {
   roles: ["teacher"],
-  permissions: [PERMISSIONS.REPORTS_ATTENDANCE, PERMISSIONS.REPORTS_PROGRESS],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS, PERMISSIONS.REPORTS_ATTENDANCE],
   scopes: [{ type: "section", sectionId: "sec-101" }],
 };
 assert.equal(canSeeReportsInSidebar(teacherAcl), true, "Teacher sees Reports in sidebar");
 
 const parentAcl: UserAcl = {
   roles: ["parent"],
-  permissions: [PERMISSIONS.NOTICES_READ, PERMISSIONS.EVENTS_READ],
+  permissions: [],
   scopes: [{ type: "children" }],
 };
 assert.equal(canSeeReportsInSidebar(parentAcl), false, "Parent does NOT see Reports in sidebar");
 
 const studentAcl: UserAcl = {
   roles: ["student"],
-  permissions: [PERMISSIONS.NOTICES_READ, PERMISSIONS.EVENTS_READ],
+  permissions: [],
   scopes: [{ type: "self" }],
 };
 assert.equal(canSeeReportsInSidebar(studentAcl), false, "Student does NOT see Reports in sidebar");
@@ -111,29 +120,13 @@ console.log("✓ Sidebar navigation filtering and active route matching tests pa
 // 2. Reports Hub Role-Filtered Card Visibility (Mockup Page 54)
 // ============================================================================
 function getVisibleReportCards(acl: UserAcl): string[] {
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAttendance = acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE);
-  const canProgress = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
-  const canFees = acl.permissions.includes(PERMISSIONS.REPORTS_FEES) && hasSchoolScope;
-  const isTeacher =
-    acl.roles.includes("teacher") &&
-    !acl.roles.some((r) =>
-      ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-    );
-  const hasAdminRole = acl.roles.some((r) =>
-    ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-  );
-  const canTeacherWorkload =
-    !isTeacher && hasAdminRole && canProgress && hasSchoolScope;
-  const canStudentList = canProgress;
-
   const cards = [
-    { id: "attendance", visible: canAttendance },
-    { id: "progress", visible: canProgress },
-    { id: "fee-collection", visible: canFees },
-    { id: "payments", visible: canFees },
-    { id: "students", visible: canStudentList },
-    { id: "teachers", visible: canTeacherWorkload },
+    { id: "attendance", visible: canAccessAttendance(acl) },
+    { id: "progress", visible: canAccessProgress(acl) },
+    { id: "fee-collection", visible: canAccessFees(acl) },
+    { id: "payments", visible: canAccessFees(acl) },
+    { id: "students", visible: canAccessStudentList(acl) },
+    { id: "teachers", visible: canAccessTeacherWorkload(acl) },
   ];
 
   return cards.filter((c) => c.visible).map((c) => c.id);
@@ -183,67 +176,13 @@ assert.equal(getVisibleReportCards(studentAcl).length, 0, "Student sees 0 cards"
 console.log("✓ Reports Hub role-filtered card visibility tests passed (Mockup Page 54)");
 
 // ============================================================================
-// 3. Direct Route Protection Logic
+// 3. Direct Route Protection Logic (Delegates to centralized ReportsPolicy)
 // ============================================================================
 function checkDirectRouteAccess(
-  route: "/reports/attendance" | "/reports/progress" | "/reports/fee-collection" | "/reports/payments" | "/reports/students" | "/reports/teachers",
+  route: string,
   acl: UserAcl
 ): { allowed: boolean; reason?: string } {
-  const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-
-  switch (route) {
-    case "/reports/fee-collection":
-    case "/reports/payments":
-      if (!acl.permissions.includes(PERMISSIONS.REPORTS_FEES)) {
-        return { allowed: false, reason: "Missing permission reports.fees" };
-      }
-      if (!hasSchoolScope) {
-        return { allowed: false, reason: "Fee reports require school scope" };
-      }
-      return { allowed: true };
-
-    case "/reports/teachers": {
-      const isTeacher =
-        acl.roles.includes("teacher") &&
-        !acl.roles.some((r) =>
-          ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-        );
-      if (isTeacher) {
-        return { allowed: false, reason: "Teachers are not authorized to view the teacher workload report" };
-      }
-      const hasAdminRole = acl.roles.some((r) =>
-        ["school_super_admin", "school_admin", "academic_admin"].includes(r)
-      );
-      if (!hasAdminRole) {
-        return { allowed: false, reason: "Teacher workload report requires administrative role" };
-      }
-      if (!acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS)) {
-        return { allowed: false, reason: "Missing permission reports.progress" };
-      }
-      if (!hasSchoolScope) {
-        return { allowed: false, reason: "Teacher workload report requires school scope" };
-      }
-      return { allowed: true };
-    }
-
-    case "/reports/students":
-      if (!acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS)) {
-        return { allowed: false, reason: "Student list report requires reports.progress permission" };
-      }
-      return { allowed: true };
-
-    case "/reports/progress":
-      if (!acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS)) {
-        return { allowed: false, reason: "Progress report requires progress reporting permissions" };
-      }
-      return { allowed: true };
-
-    case "/reports/attendance":
-      if (!acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE)) {
-        return { allowed: false, reason: "Attendance report requires attendance reporting permissions" };
-      }
-      return { allowed: true };
-  }
+  return checkReportRouteAccess(route, acl);
 }
 
 // 3a. Fee reports direct route check
@@ -338,7 +277,68 @@ assert.equal(checkDirectRouteAccess("/reports/progress", parentAcl).allowed, fal
 assert.equal(checkDirectRouteAccess("/reports/students", parentAcl).allowed, false);
 assert.equal(checkDirectRouteAccess("/reports/teachers", parentAcl).allowed, false);
 
-console.log("✓ Direct route protection logic tests passed");
+// 3g. Centralized ReportsPolicy helper function unit tests
+assert.equal(canAccessAttendance(attendanceOnlyAcl), true, "canAccessAttendance allows user with reports.attendance");
+assert.equal(canAccessAttendance(parentAcl), false, "canAccessAttendance denies parent");
+
+assert.equal(canAccessProgress(teacherAcl), true, "canAccessProgress allows teacher with reports.progress");
+assert.equal(canAccessProgress(attendanceOnlyAcl), false, "canAccessProgress denies attendance-only");
+
+assert.equal(canAccessFees(accountsAdminAcl), true, "canAccessFees allows accounts admin with school scope");
+assert.equal(canAccessFees(teacherAcl), false, "canAccessFees denies teacher without reports.fees/school scope");
+
+assert.equal(canAccessStudentList(teacherAcl), true, "canAccessStudentList allows teacher with reports.progress");
+assert.equal(canAccessStudentList(attendanceOnlyAcl), false, "canAccessStudentList denies user without reports.progress");
+
+// Teacher workload role precedence matching backend:
+// 1. Teacher-only => denied
+assert.equal(canAccessTeacherWorkload(teacherAcl), false, "canAccessTeacherWorkload denies teacher-only");
+assert.equal(canAccessTeacherWorkload(teacherWithSchoolScopeAcl), false, "canAccessTeacherWorkload denies teacher even with school scope");
+const teacherCheck = checkTeacherWorkloadAccess(teacherAcl);
+assert.equal(teacherCheck.allowed, false);
+assert.equal(teacherCheck.isTeacherOnly, true);
+assert.equal(teacherCheck.reason, "Teachers are not authorized to view the teacher workload report");
+
+// 2. Teacher + Academic Admin => allowed
+assert.equal(canAccessTeacherWorkload(teacherAcademicAdminAcl), true, "canAccessTeacherWorkload allows teacher + academic_admin");
+
+// 3. Teacher + School Admin => allowed
+assert.equal(canAccessTeacherWorkload(teacherSchoolAdminAcl), true, "canAccessTeacherWorkload allows teacher + school_admin");
+
+// 4. Teacher + School Super Admin => allowed
+assert.equal(canAccessTeacherWorkload(teacherSuperAdminAcl), true, "canAccessTeacherWorkload allows teacher + school_super_admin");
+
+// 5. Admin role still requires reports.progress + school scope
+const adminNoScopeAcl: UserAcl = {
+  roles: ["academic_admin"],
+  permissions: [PERMISSIONS.REPORTS_PROGRESS],
+  scopes: [{ type: "section", sectionId: "sec-101" }],
+};
+assert.equal(canAccessTeacherWorkload(adminNoScopeAcl), false, "canAccessTeacherWorkload denies admin without school scope");
+assert.equal(
+  checkTeacherWorkloadAccess(adminNoScopeAcl).reason,
+  "Teacher workload report requires school scope"
+);
+
+const adminNoPermissionAcl: UserAcl = {
+  roles: ["academic_admin"],
+  permissions: [PERMISSIONS.REPORTS_ATTENDANCE],
+  scopes: [{ type: "school" }],
+};
+assert.equal(canAccessTeacherWorkload(adminNoPermissionAcl), false, "canAccessTeacherWorkload denies admin without reports.progress");
+assert.equal(
+  checkTeacherWorkloadAccess(adminNoPermissionAcl).reason,
+  "Missing permission reports.progress"
+);
+
+// 6. Accounts admin denied from teacher workload
+assert.equal(canAccessTeacherWorkload(accountsAdminAcl), false, "canAccessTeacherWorkload denies accounts_admin");
+assert.equal(
+  checkTeacherWorkloadAccess(accountsAdminAcl).reason,
+  "Teacher workload report requires administrative role"
+);
+
+console.log("✓ Direct route protection logic and centralized ReportsPolicy tests passed");
 
 // ============================================================================
 // 4. Teacher Section Scoping Filter Logic
