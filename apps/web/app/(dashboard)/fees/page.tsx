@@ -2,11 +2,16 @@
 
 import { AppHeader } from "../../../components/shell/app-header";
 import { FeesBoard } from "../../../features/fees/fees-board";
+import { useAppBranding } from "../../../lib/branding-context";
 
 export default function FeesPage() {
+  const { branding } = useAppBranding();
   return (
     <div>
-      <AppHeader title="Fees" subtitle="Record cash / UPI / bank. Receipts are school-wide ANA/26-27/n. No gateway." />
+      <AppHeader
+        title="Fees"
+        subtitle={`Record cash / UPI / bank. Receipts use ${branding.receiptPrefix}/{n}. No gateway.`}
+      />
       <FeesBoard />
     </div>
   );

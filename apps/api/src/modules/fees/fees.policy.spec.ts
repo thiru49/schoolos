@@ -50,6 +50,17 @@ describe("FeesPolicy", () => {
     expect(() => policy.assertStructure(acl)).toThrow(ForbiddenException);
   });
 
+  it("allows accounts admin to record with school scope", () => {
+    const acl: RequestAcl = {
+      userId: "a1",
+      schoolId: "s1",
+      roles: ["accounts_admin"],
+      permissions: [PERMISSIONS.FEES_RECORD],
+      scopes: [{ type: "school" }],
+    };
+    expect(() => policy.assertRecord(acl)).not.toThrow();
+  });
+
   it("denies teacher recording fees", () => {
     const acl: RequestAcl = {
       userId: "t1",

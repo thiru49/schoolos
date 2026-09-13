@@ -120,6 +120,17 @@ async function seedArulNeri(passwordHash: string) {
     data: { schoolId, userId: superAdmin.id, scopeType: "school" },
   });
 
+  const accounts = await createUser({
+    schoolId,
+    identifier: "accounts",
+    displayName: "Accounts Admin",
+    passwordHash,
+    roleCode: ROLE_CODES.ACCOUNTS_ADMIN,
+  });
+  await prisma.userScope.create({
+    data: { schoolId, userId: accounts.id, scopeType: "school" },
+  });
+
   const teacher = await createUser({
     schoolId,
     identifier: "TCH-8A",
@@ -327,6 +338,7 @@ async function main() {
   console.log("Password (all demo users):", password);
   console.log("Users:");
   console.log("  superadmin / (web super admin)");
+  console.log("  accounts / accounts admin");
   console.log("  TCH-8A / teacher of 8-A");
   console.log("  9000000001 / parent of Arun");
   console.log("  AN2021-0001 / student Arun");

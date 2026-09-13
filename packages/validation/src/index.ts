@@ -181,7 +181,7 @@ export const feeRecordSchema = z.object({
   feeHeadId: z.string().uuid(),
   amount: z.number().int().positive(),
   method: z.enum(["cash", "upi", "bank"]),
-  note: z.string().optional(),
+  note: z.string().trim().min(1).optional(),
 });
 
 export const homeworkCreateSchema = z.object({
