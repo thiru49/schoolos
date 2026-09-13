@@ -66,13 +66,7 @@ export class FeesService {
         where: { id: input.feeHeadId, schoolId: acl.schoolId },
       });
       if (!head) throw new NotFoundException("Fee head not found");
-      const school = await tx.school.findFirstOrThrow({ where: { id: acl.schoolId } });
-      const last = await tx.receipt.findFirst({
-        where: { schoolId: acl.schoolId },
-        orderBy: { seq: "desc" },
-      });
-      const seq = (last?.seq ?? 0) + 1;
-      const number = `${school.receiptPrefix}/${seq}`;
+      const { seq, number } = await allocateReceiptNumber(tx, acl.schoolId);
       const payment = await tx.feePayment.create({
         data: {
           schoolId: acl.schoolId,
@@ -153,6 +147,24 @@ export class FeesService {
     });
     return parent?.children.map((c) => c.studentId) ?? [];
   }
+}
+
+async function allocateReceiptNumber(
+  tx: import("@prisma/client").Prisma.TransactionClient,
+  schoolId: string,
+) {
+  const locked = await tx.$queryRaw<Array<{ receipt_prefix: string }>>`
+    SELECT receipt_prefix FROM schools WHERE id = CAST(${schoolId} AS uuid) FOR UPDATE
+  `;
+  const prefix = locked[0]?.receipt_prefix;
+  if (!prefix) throw new NotFoundException("School not found");
+  const last = await tx.receipt.findFirst({
+    where: { schoolId },
+    orderBy: { seq: "desc" },
+    select: { seq: true },
+  });
+  const seq = (last?.seq ?? 0) + 1;
+  return { seq, number: `${prefix}/${seq}` };
 }
 
 function toDto(p: {
