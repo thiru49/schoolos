@@ -22,10 +22,7 @@ export class FeesPolicy {
   }
 
   assertRead(acl: RequestAcl) {
-    if (
-      !acl.permissions.includes(PERMISSIONS.FEES_READ) &&
-      !acl.permissions.includes(PERMISSIONS.RECEIPTS_READ)
-    ) {
+    if (!acl.permissions.includes(PERMISSIONS.FEES_READ)) {
       throw new ForbiddenException("Missing permission fees.read");
     }
   }

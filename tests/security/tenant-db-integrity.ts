@@ -21,6 +21,9 @@ async function main() {
     "attendance",
     "user_roles",
     "user_scopes",
+    "fee_heads",
+    "fee_payments",
+    "receipts",
   ];
   for (const t of required) {
     if (!tables.has(t)) throw new Error(`RLS policy missing on ${t} — was migrate applied?`);
@@ -34,6 +37,18 @@ async function main() {
   `;
   if (!rls[0]?.relrowsecurity || !rls[0]?.relforcerowsecurity) {
     throw new Error("students RLS/FORCE RLS not enabled");
+  }
+
+  for (const feeTable of ["fee_heads", "fee_payments", "receipts"] as const) {
+    const feeRls = await prisma.$queryRaw<{ relname: string; relrowsecurity: boolean; relforcerowsecurity: boolean }[]>`
+      SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ${feeTable}
+    `;
+    if (!feeRls[0]?.relrowsecurity || !feeRls[0]?.relforcerowsecurity) {
+      throw new Error(`${feeTable} RLS/FORCE RLS not enabled`);
+    }
   }
 
   const fn = await prisma.$queryRaw<{ proname: string }[]>`
