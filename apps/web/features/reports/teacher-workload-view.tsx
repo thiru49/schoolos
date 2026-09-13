@@ -34,8 +34,20 @@ type TeacherWorkloadData = {
 
 export function TeacherWorkloadView() {
   const { acl } = useAppBranding();
+  const isTeacher =
+    acl.roles.includes("teacher") &&
+    !acl.roles.some((r) =>
+      ["school_super_admin", "school_admin", "academic_admin"].includes(r)
+    );
+  const hasAdminRole = acl.roles.some((r) =>
+    ["school_super_admin", "school_admin", "academic_admin"].includes(r)
+  );
   const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAccess = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS) && hasSchoolScope;
+  const canAccess =
+    !isTeacher &&
+    hasAdminRole &&
+    hasSchoolScope &&
+    acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
 
   const [teacherId, setTeacherId] = useState("");
   const [data, setData] = useState<TeacherWorkloadData | null>(null);
@@ -81,8 +93,14 @@ export function TeacherWorkloadView() {
     }
   }
 
+  if (isTeacher) {
+    return <PermissionDenied detail="Teachers are not authorized to view the teacher workload report." />;
+  }
+
   if (!canAccess) {
-    return <PermissionDenied detail="Teacher workload report requires school scope and progress reporting permissions." />;
+    return (
+      <PermissionDenied detail="Teacher workload report requires administrative role, school scope, and progress reporting permissions." />
+    );
   }
 
   return (

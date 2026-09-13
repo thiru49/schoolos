@@ -29,8 +29,17 @@ export function ReportsHub() {
   const canAttendance = acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE);
   const canProgress = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
   const canFees = acl.permissions.includes(PERMISSIONS.REPORTS_FEES) && hasSchoolScope;
-  const canTeacherWorkload = canProgress && hasSchoolScope;
-  const canStudentList = canProgress || canAttendance;
+  const isTeacher =
+    acl.roles.includes("teacher") &&
+    !acl.roles.some((r) =>
+      ["school_super_admin", "school_admin", "academic_admin"].includes(r)
+    );
+  const hasAdminRole = acl.roles.some((r) =>
+    ["school_super_admin", "school_admin", "academic_admin"].includes(r)
+  );
+  const canTeacherWorkload =
+    !isTeacher && hasAdminRole && canProgress && hasSchoolScope;
+  const canStudentList = canProgress;
 
   // If user has none of the report permissions, show permission denied
   if (!canAttendance && !canProgress && !canFees) {

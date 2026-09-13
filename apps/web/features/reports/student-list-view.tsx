@@ -39,9 +39,7 @@ type StudentListData = {
 export function StudentListView() {
   const { acl } = useAppBranding();
   const hasSchoolScope = acl.scopes.some((s) => s.type === "school");
-  const canAccess =
-    acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS) ||
-    acl.permissions.includes(PERMISSIONS.REPORTS_ATTENDANCE);
+  const canAccess = acl.permissions.includes(PERMISSIONS.REPORTS_PROGRESS);
 
   const allowedSectionIds = acl.scopes
     .filter((s) => s.type === "section" && Boolean(s.sectionId))
@@ -118,7 +116,7 @@ export function StudentListView() {
   }
 
   if (!canAccess) {
-    return <PermissionDenied detail="Student list report requires academic reporting permissions." />;
+    return <PermissionDenied detail="Student list report requires reports.progress permission." />;
   }
 
   return (
