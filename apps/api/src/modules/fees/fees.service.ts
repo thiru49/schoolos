@@ -149,6 +149,39 @@ export class FeesService {
     });
   }
 
+  /**
+   * FEE-007: fetch receipt data enriched with school branding for PDF rendering.
+   * Same RBAC as getReceipt() — assertReceiptRead + assertCanSeeReceipt.
+   */
+  getReceiptForPdf(acl: RequestAcl, id: string) {
+    const parsed = z.string().uuid().safeParse(id);
+    if (!parsed.success) throw new NotFoundException("Receipt not found");
+    this.policy.assertReceiptRead(acl);
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const receipt = await tx.receipt.findFirst({
+        where: { id: parsed.data, schoolId: acl.schoolId },
+        include: { payment: { include: { student: true, feeHead: true } } },
+      });
+      if (!receipt) throw new NotFoundException("Receipt not found");
+      const linked = await this.linkedChildIds(tx, acl);
+      this.policy.assertCanSeeReceipt(acl, receipt.payment.studentId, linked);
+      const school = await tx.school.findFirstOrThrow({ where: { id: acl.schoolId } });
+      return {
+        schoolName: school.name,
+        logoUrl: school.logoUrl,
+        typography: school.typography as { families?: { display?: string; body?: string; tamil?: string } } | null,
+        receiptNumber: receipt.number,
+        createdAt: receipt.payment.createdAt.toISOString(),
+        studentName: receipt.payment.student.fullName,
+        admissionNumber: receipt.payment.student.admissionNumber,
+        feeHead: receipt.payment.feeHead.name,
+        amount: receipt.payment.amount,
+        method: receipt.payment.method,
+        note: receipt.payment.note,
+      };
+    });
+  }
+
   async summary(acl: RequestAcl, studentId?: string) {
     this.policy.assertRead(acl);
     if (studentId && !z.string().uuid().safeParse(studentId).success) {
