@@ -430,7 +430,36 @@ export const userListQuerySchema = z.object({
   role: z.string().optional(),
 });
 
+const tenantSlugSchema = z
+  .string()
+  .min(2, "Slug must be at least 2 characters")
+  .max(48, "Slug must be at most 48 characters")
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase letters, numbers, and hyphens");
+
+export const provisionSchoolSchema = z.object({
+  slug: tenantSlugSchema,
+  name: z.string().trim().min(1, "School name is required").max(200),
+  tagline: z.string().trim().min(1).max(300).optional(),
+  location: z.string().trim().min(1).max(300).optional(),
+  receiptPrefix: z.string().trim().min(1).max(50).optional(),
+  defaultLanguage: z.enum(["en", "ta"]).optional().default("en"),
+  attendanceMode: z.enum(["daily", "period"]).optional().default("daily"),
+  typographyPreset: z.enum(["arulneri", "modern", "classic", "tamil-first"]).optional().default("tamil-first"),
+  admin: z.object({
+    identifier: z.string().trim().min(1, "Admin identifier is required").max(100),
+    displayName: z.string().trim().min(1, "Admin display name is required").max(200),
+    password: z.string().min(8, "Admin password must be at least 8 characters").max(128),
+  }),
+  academicYear: z
+    .object({
+      name: z.string().trim().min(1, "Academic year name is required").max(50),
+      isActive: z.boolean().optional().default(true),
+    })
+    .optional(),
+});
+
 export type AssignRolesInput = z.infer<typeof assignRolesSchema>;
 export type UserScopeItemInput = z.infer<typeof userScopeItemSchema>;
 export type UpdateScopesInput = z.infer<typeof updateScopesSchema>;
 export type UserListQueryInput = z.infer<typeof userListQuerySchema>;
+export type ProvisionSchoolInput = z.infer<typeof provisionSchoolSchema>;

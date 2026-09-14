@@ -1,9 +1,9 @@
 import { ALL_PERMISSION_CODES, ROLE_CODES } from "@schoolos/permissions";
+import { seedRolesForSchool } from "@schoolos/tenant-bootstrap";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
 import { arulNeriTheme, arulNeriTypography, schoolBTheme } from "./branding";
-import { ROLE_NAMES, ROLE_PERMISSION_MATRIX } from "./matrix";
 
 const prisma = new PrismaClient();
 
@@ -18,32 +18,6 @@ async function seedPermissions() {
       where: { code },
       update: { resource, action, description: code },
       create: { code, resource, action, description: code },
-    });
-  }
-}
-
-async function seedRolesForSchool(schoolId: string) {
-  const permissions = await prisma.permission.findMany();
-  const byCode = new Map(permissions.map((p) => [p.code, p.id]));
-
-  for (const [code, permCodes] of Object.entries(ROLE_PERMISSION_MATRIX)) {
-    const role = await prisma.role.upsert({
-      where: { schoolId_code: { schoolId, code } },
-      update: { name: ROLE_NAMES[code as keyof typeof ROLE_NAMES] },
-      create: {
-        schoolId,
-        code,
-        name: ROLE_NAMES[code as keyof typeof ROLE_NAMES],
-        isSystem: true,
-      },
-    });
-    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
-    await prisma.rolePermission.createMany({
-      data: permCodes.map((c) => {
-        const permissionId = byCode.get(c);
-        if (!permissionId) throw new Error(`Missing permission ${c}`);
-        return { roleId: role.id, permissionId, schoolId };
-      }),
     });
   }
 }
@@ -91,7 +65,7 @@ async function seedArulNeri(passwordHash: string) {
     },
   });
 
-  await seedRolesForSchool(schoolId);
+  await seedRolesForSchool(prisma, schoolId);
 
   const year = await prisma.academicYear.create({
     data: { schoolId, name: "2026-27", isActive: true },
@@ -256,7 +230,7 @@ async function seedSchoolB(passwordHash: string) {
       typography: arulNeriTypography,
     },
   });
-  await seedRolesForSchool(schoolId);
+  await seedRolesForSchool(prisma, schoolId);
   const year = await prisma.academicYear.create({
     data: { schoolId, name: "2026-27", isActive: true },
   });

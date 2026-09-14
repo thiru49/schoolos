@@ -14,6 +14,9 @@ importers:
       '@schoolos/permissions':
         specifier: workspace:*
         version: link:packages/permissions
+      '@schoolos/tenant-bootstrap':
+        specifier: workspace:*
+        version: link:packages/tenant-bootstrap
       '@schoolos/types':
         specifier: workspace:*
         version: link:packages/types
@@ -60,6 +63,9 @@ importers:
       '@schoolos/permissions':
         specifier: workspace:*
         version: link:../../packages/permissions
+      '@schoolos/tenant-bootstrap':
+        specifier: workspace:*
+        version: link:../../packages/tenant-bootstrap
       '@schoolos/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -309,6 +315,22 @@ importers:
   packages/config: {}
 
   packages/permissions:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/tenant-bootstrap:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.16.1
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@schoolos/permissions':
+        specifier: workspace:*
+        version: link:../permissions
+      '@schoolos/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       typescript:
         specifier: ^5.9.2

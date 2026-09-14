@@ -15,6 +15,7 @@ import { TeachersModule } from "./modules/teachers/teachers.module";
 import { TimetableModule } from "./modules/timetable/timetable.module";
 import { CommunicationsModule } from "./modules/communications/communications.module";
 import { ReportsModule } from "./modules/reports/reports.module";
+import { ProvisioningModule } from "./modules/provisioning/provisioning.module";
 import { RbacModule } from "./modules/rbac/rbac.module";
 import { TenancyModule } from "./modules/tenancy/tenancy.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -44,6 +45,7 @@ import { JwtOptionalMiddleware } from "./common/middleware/jwt-optional.middlewa
     NotificationsModule,
     CommunicationsModule,
     ReportsModule,
+    ProvisioningModule,
   ],
 })
 export class AppModule implements NestModule {
