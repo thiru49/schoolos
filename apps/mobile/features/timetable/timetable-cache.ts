@@ -1,4 +1,5 @@
-import * as SecureStore from "expo-secure-store";
+import { buildPartitionedCacheKey } from "../cache/cache-key";
+import { createSecureStoreBackend, type KeyValueStorage } from "../cache/cache-storage";
 
 export type CachedPeriod = {
   id: string;
@@ -16,33 +17,67 @@ export type CachedPeriod = {
 };
 
 export type CachedTimetableData = {
-  studentId: string;
+  schoolId: string;
+  userId: string;
+  role: string;
+  childId?: string;
   periods: CachedPeriod[];
   cachedAt: string;
 };
 
 const CACHE_PREFIX = "schoolos_timetable_";
 
+let storageBackend: KeyValueStorage | null = null;
+
+export function setTimetableStorageBackend(backend: KeyValueStorage | null) {
+  storageBackend = backend;
+}
+
+function getStorage(): KeyValueStorage | null {
+  if (storageBackend) return storageBackend;
+  return createSecureStoreBackend();
+}
+
+export function buildTimetableCacheKey(
+  schoolId?: string | null,
+  userId?: string | null,
+  role?: string | null,
+  childId?: string | null,
+): string | null {
+  return buildPartitionedCacheKey(CACHE_PREFIX, schoolId, userId, role, childId);
+}
+
 /**
- * Retrieve cached timetable data for a given student/child scope.
- * Guarantees that data is only returned if the scoped studentId matches.
+ * Retrieve cached timetable data for the current session partition.
+ * Validates payload matches schoolId, userId, role, and childId before returning.
  */
 export async function getCachedTimetable(
-  scopeKey: string,
-  expectedStudentId: string,
+  schoolId: string | null | undefined,
+  userId: string | null | undefined,
+  role: string | null | undefined,
+  childId?: string | null,
 ): Promise<CachedTimetableData | null> {
+  const key = buildTimetableCacheKey(schoolId, userId, role, childId);
+  if (!key) return null;
+
   try {
-    const raw = await SecureStore.getItemAsync(`${CACHE_PREFIX}${scopeKey}`);
+    const storage = getStorage();
+    if (!storage || typeof storage.getItemAsync !== "function") return null;
+
+    const raw = await storage.getItemAsync(key);
     if (!raw) return null;
+
     const data = JSON.parse(raw) as CachedTimetableData;
-    // Strict partition and structural check:
-    // - data must exist and be an object
-    // - studentId must strictly match the active child/user to prevent cross-account/sibling leaks
-    // - periods must be a valid array
+    const normalizedChildId = childId || undefined;
+    const payloadChildId = data?.childId || undefined;
+
     if (
       !data ||
       typeof data !== "object" ||
-      data.studentId !== expectedStudentId ||
+      data.schoolId !== schoolId ||
+      data.userId !== userId ||
+      data.role !== role ||
+      payloadChildId !== normalizedChildId ||
       !Array.isArray(data.periods)
     ) {
       return null;
@@ -53,22 +88,48 @@ export async function getCachedTimetable(
   }
 }
 
-/**
- * Save timetable periods to persistent cache scoped by student/child.
- */
 export async function setCachedTimetable(
-  scopeKey: string,
-  studentId: string,
+  schoolId: string | null | undefined,
+  userId: string | null | undefined,
+  role: string | null | undefined,
   periods: CachedPeriod[],
+  childId?: string | null,
 ): Promise<void> {
+  const key = buildTimetableCacheKey(schoolId, userId, role, childId);
+  if (!key || !schoolId || !userId || !role) return;
+
   try {
+    const storage = getStorage();
+    if (!storage || typeof storage.setItemAsync !== "function") return;
+
     const payload: CachedTimetableData = {
-      studentId,
+      schoolId,
+      userId,
+      role,
+      childId: childId || undefined,
       periods,
       cachedAt: new Date().toISOString(),
     };
-    await SecureStore.setItemAsync(`${CACHE_PREFIX}${scopeKey}`, JSON.stringify(payload));
+    await storage.setItemAsync(key, JSON.stringify(payload));
   } catch {
     // Ignore storage failures
+  }
+}
+
+export async function clearCachedTimetable(
+  schoolId: string | null | undefined,
+  userId: string | null | undefined,
+  role: string | null | undefined,
+  childId?: string | null,
+): Promise<void> {
+  const key = buildTimetableCacheKey(schoolId, userId, role, childId);
+  if (!key) return;
+
+  try {
+    const storage = getStorage();
+    if (!storage || typeof storage.deleteItemAsync !== "function") return;
+    await storage.deleteItemAsync(key);
+  } catch {
+    // Ignore purge errors
   }
 }

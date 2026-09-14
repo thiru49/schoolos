@@ -1,12 +1,16 @@
 import { Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useBranding } from "../../features/branding/branding-provider";
-import { clearTenantSelection } from "../../features/tenant/tenant-session";
+import {
+  buildSessionCacheContext,
+  clearTenantSelection,
+} from "../../features/tenant/tenant-session";
 import { AppText } from "./AppText";
 
 export function ChangeSchoolLink() {
   const router = useRouter();
-  const { theme, setBranding, setAcl, setActiveRole, setSelectedChild } = useBranding();
+  const { theme, acl, activeRole, selectedChild, setBranding, setAcl, setActiveRole, setSelectedChild } =
+    useBranding();
 
   return (
     <Pressable
@@ -17,6 +21,7 @@ export function ChangeSchoolLink() {
             setAcl,
             setActiveRole,
             setSelectedChild,
+            cacheContext: buildSessionCacheContext(acl, activeRole, selectedChild),
           });
           router.replace("/school-select");
         })();

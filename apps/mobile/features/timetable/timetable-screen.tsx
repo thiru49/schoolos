@@ -60,12 +60,17 @@ function getPeriodStatus(
 }
 
 export function TimetableScreen() {
-  const { theme, acl, selectedChild } = useBranding();
+  const { theme, acl, activeRole, selectedChild } = useBranding();
   const router = useRouter();
 
   const isParent = Boolean(acl?.roles.includes("parent"));
   const isStudent = Boolean(acl?.roles.includes("student"));
   const activeStudentId = isParent ? selectedChild?.studentId : undefined;
+  const schoolId = acl?.schoolId;
+  const userId = acl?.userId;
+  const role =
+    activeRole ?? (acl?.roles?.length === 1 ? acl.roles[0] : null);
+  const childId = isParent ? activeStudentId : undefined;
 
   const [weekday, setWeekday] = useState<number>(getTodayWeekday());
   const [allPeriods, setAllPeriods] = useState<CachedPeriod[]>([]);
@@ -105,9 +110,11 @@ export function TimetableScreen() {
       }
       setMessage("");
 
-      const userScopedSuffix = acl?.userId ? `user_${acl.userId}` : "self";
-      const scopeKey = isParent && activeStudentId ? `child_${activeStudentId}` : `student_${userScopedSuffix}`;
-      const expectedStudentId = isParent && activeStudentId ? activeStudentId : userScopedSuffix;
+      if (!schoolId || !userId || !role) {
+        setState("error");
+        setMessage("Session context is incomplete. Please sign in again.");
+        return;
+      }
 
       try {
         const client = await api();
@@ -121,10 +128,10 @@ export function TimetableScreen() {
         setState("loaded");
 
         // Persist to scoped offline storage
-        void setCachedTimetable(scopeKey, expectedStudentId, list);
+        void setCachedTimetable(schoolId, userId, role, list, childId);
       } catch (e) {
         // Attempt to load from scoped offline cache
-        const cached = await getCachedTimetable(scopeKey, expectedStudentId);
+        const cached = await getCachedTimetable(schoolId, userId, role, childId);
         if (cached && cached.periods.length > 0) {
           setAllPeriods(cached.periods);
           setIsCachedData(true);
@@ -151,7 +158,7 @@ export function TimetableScreen() {
         }
       }
     },
-    [isParent, selectedChild, activeStudentId],
+    [isParent, selectedChild, activeStudentId, schoolId, userId, role, childId],
   );
 
   // Reload whenever the selected child or parent status changes, clearing existing state
