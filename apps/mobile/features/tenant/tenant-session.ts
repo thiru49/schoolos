@@ -1,4 +1,11 @@
 import type { AclPayload, BrandingPayload, LinkedChild, RoleCode } from "@schoolos/types";
+import {
+  buildSessionCacheContext,
+  clearSessionCaches,
+  type SessionCacheContext,
+} from "../cache/clear-session-caches";
+
+export { buildSessionCacheContext, type SessionCacheContext };
 import { clearActiveRole, clearSlug, clearTokens } from "../../services/storage";
 
 type SessionSetters = {
@@ -8,12 +15,20 @@ type SessionSetters = {
   setSelectedChild?: (child: LinkedChild | null) => void;
 };
 
+type ClearSessionOptions = {
+  cacheContext?: SessionCacheContext;
+};
+
 /** Clears auth tokens and in-memory session without changing the selected school. */
 export async function clearAuthSession({
   setAcl,
   setActiveRole,
   setSelectedChild,
-}: Pick<SessionSetters, "setAcl" | "setActiveRole" | "setSelectedChild">) {
+  cacheContext,
+}: Pick<SessionSetters, "setAcl" | "setActiveRole" | "setSelectedChild"> & ClearSessionOptions) {
+  if (cacheContext) {
+    await clearSessionCaches(cacheContext);
+  }
   await clearTokens();
   await clearActiveRole();
   setAcl(null);
@@ -27,7 +42,11 @@ export async function clearTenantSelection({
   setAcl,
   setActiveRole,
   setSelectedChild,
-}: SessionSetters) {
+  cacheContext,
+}: SessionSetters & ClearSessionOptions) {
+  if (cacheContext) {
+    await clearSessionCaches(cacheContext);
+  }
   await clearSlug();
   await clearTokens();
   await clearActiveRole();

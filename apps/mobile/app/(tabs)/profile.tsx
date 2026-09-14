@@ -2,12 +2,16 @@ import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useBranding } from "../../features/branding/branding-provider";
 import { api } from "../../services/api";
-import { clearActiveRole, clearTokens, setActiveRole as persistActiveRole } from "../../services/storage";
+import { setActiveRole as persistActiveRole } from "../../services/storage";
+import {
+  buildSessionCacheContext,
+  clearAuthSession,
+} from "../../features/tenant/tenant-session";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
 
 export default function Profile() {
-  const { theme, acl, setAcl, activeRole, setActiveRole } = useBranding();
+  const { theme, acl, setAcl, activeRole, setActiveRole, setSelectedChild } = useBranding();
   const router = useRouter();
   return (
     <View className="flex-1 px-6 pt-16" style={{ backgroundColor: theme.colors.background }}>
@@ -63,10 +67,12 @@ export default function Profile() {
             } catch {
               /* revoke best-effort */
             }
-            await clearTokens();
-            await clearActiveRole();
-            setAcl(null);
-            setActiveRole(null);
+            await clearAuthSession({
+              setAcl,
+              setActiveRole,
+              setSelectedChild,
+              cacheContext: buildSessionCacheContext(acl, activeRole),
+            });
             router.replace("/role-select");
           }}
         />

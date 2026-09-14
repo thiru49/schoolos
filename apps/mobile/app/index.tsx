@@ -11,7 +11,10 @@ import {
   shouldPromptSchoolSelection,
   tenantSessionMatches,
 } from "../features/tenant/tenant-policy";
-import { clearAuthSession } from "../features/tenant/tenant-session";
+import {
+  buildSessionCacheContext,
+  clearAuthSession,
+} from "../features/tenant/tenant-session";
 import { AppText } from "../components/ui/AppText";
 import { AppButton } from "../components/ui/AppButton";
 
@@ -43,7 +46,12 @@ export default function Splash() {
           const client = await api();
           const aclRes = await client.me.acl();
           if (!tenantSessionMatches(tenantBranding, aclRes)) {
-            await clearAuthSession({ setAcl, setActiveRole, setSelectedChild });
+            await clearAuthSession({
+              setAcl,
+              setActiveRole,
+              setSelectedChild,
+              cacheContext: buildSessionCacheContext(aclRes, null),
+            });
             router.replace("/role-select");
             return;
           }

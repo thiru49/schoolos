@@ -28,7 +28,7 @@ export function PaymentMethodPill({ method }: { method: string }) {
 }
 
 export function FeesScreen() {
-  const { theme, acl, selectedChild } = useBranding();
+  const { theme, acl, activeRole, selectedChild } = useBranding();
   const router = useRouter();
   const isParent = Boolean(acl?.roles.includes("parent"));
   const isStudent = Boolean(acl?.roles.includes("student"));
@@ -44,6 +44,11 @@ export function FeesScreen() {
   const [cachedTime, setCachedTime] = useState<string | null>(null);
 
   const activeStudentId = isParent ? selectedChild?.studentId : undefined;
+  const schoolId = acl?.schoolId;
+  const userId = acl?.userId;
+  const role =
+    activeRole ?? (acl?.roles?.length === 1 ? acl.roles[0] : null);
+  const childId = isParent ? activeStudentId : undefined;
 
   const load = useCallback(async (isPullToRefresh = false) => {
     if (!canRead) {
@@ -67,7 +72,11 @@ export function FeesScreen() {
     }
     setMessage("");
 
-    const cacheKey = activeStudentId ?? "self";
+    if (!schoolId || !userId || !role) {
+      setState("error");
+      setMessage("Session context is incomplete. Please sign in again.");
+      return;
+    }
 
     try {
       const client = await api();
@@ -82,7 +91,7 @@ export function FeesScreen() {
       setCachedTime(null);
 
       // Persist to offline cache
-      void setCachedFees(cacheKey, { summary: nextSummary, rows: list });
+      void setCachedFees(schoolId, userId, role, { summary: nextSummary, rows: list }, childId);
 
       if (list.length === 0 && nextSummary.headsTotal === 0) {
         setState("empty");
@@ -91,7 +100,7 @@ export function FeesScreen() {
       }
     } catch (e) {
       // Check offline fallback cache
-      const cached = await getCachedFees(cacheKey);
+      const cached = await getCachedFees(schoolId, userId, role, childId);
       if (cached) {
         setRows(cached.rows);
         setSummary(cached.summary);
@@ -118,7 +127,7 @@ export function FeesScreen() {
         setRefreshing(false);
       }
     }
-  }, [canRead, isParent, selectedChild, activeStudentId]);
+  }, [canRead, isParent, selectedChild, activeStudentId, schoolId, userId, role, childId]);
 
   useEffect(() => {
     void load();
