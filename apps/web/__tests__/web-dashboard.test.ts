@@ -9,8 +9,12 @@ import {
   canManageRoles,
   canManageAcademicYears,
   canManageClasses,
-  type DashboardRole,
 } from "../features/dashboard/dashboard-policy";
+import {
+  buildSetupJourney,
+  evaluateStepCompletion,
+  type SetupSnapshot,
+} from "../features/onboarding/onboarding-policy";
 
 console.log("Starting PRODUCT-UX-002 Web Dashboard & Navigation Unit Tests...\n");
 
@@ -180,57 +184,52 @@ console.log("✓ Multi-role detection and switching tests passed");
 // 4. Checklist & State Integrity (No Fake Data / KPIs)
 // ============================================================================
 
-// Test setup checklist evaluation logic for new vs configured schools
-function evaluateChecklist(data: {
-  academicYears: { id: string; name: string; isActive: boolean }[];
-  classes: { id: string; name: string }[];
-  sections: { id: string; label: string }[];
-  subjects: { id: string; name: string }[];
-  teacherCount: number;
-  studentCount: number;
-  schoolName: string;
-}) {
-  return {
-    yearComplete: data.academicYears.length > 0,
-    classesComplete: data.classes.length > 0 && data.sections.length > 0,
-    subjectsComplete: data.subjects.length > 0,
-    teachersComplete: data.teacherCount > 0,
-    studentsComplete: data.studentCount > 0,
-    brandingComplete: Boolean(data.schoolName),
-  };
-}
+const superAdminChecklistAcl = {
+  roles: [ROLE_CODES.SCHOOL_SUPER_ADMIN],
+  permissions: [
+    PERMISSIONS.ACADEMIC_YEAR_MANAGE,
+    PERMISSIONS.CLASSES_MANAGE,
+    PERMISSIONS.SUBJECTS_MANAGE,
+    PERMISSIONS.TEACHERS_READ,
+    PERMISSIONS.STUDENTS_READ,
+    PERMISSIONS.SCHOOL_SETTINGS_READ,
+  ],
+  scopes: [{ type: "school" }],
+};
 
-// 4a. Newly provisioned school (0 classes, 0 students)
-const newSchoolStatus = evaluateChecklist({
-  academicYears: [{ id: "y1", name: "2026-27", isActive: true }],
-  classes: [],
-  sections: [],
-  subjects: [],
+const newSchoolSnapshot: SetupSnapshot = {
+  academicYearCount: 1,
+  classCount: 0,
+  sectionCount: 0,
+  subjectCount: 0,
   teacherCount: 0,
   studentCount: 0,
   schoolName: "New Pilot School",
-});
-assert.equal(newSchoolStatus.yearComplete, true, "Academic year is complete from provisioning");
-assert.equal(newSchoolStatus.classesComplete, false, "Classes not complete yet");
-assert.equal(newSchoolStatus.subjectsComplete, false, "Subjects not complete yet");
-assert.equal(newSchoolStatus.teachersComplete, false, "Teachers not complete yet");
-assert.equal(newSchoolStatus.studentsComplete, false, "Students not complete yet");
-assert.equal(newSchoolStatus.brandingComplete, true, "Branding is complete");
+};
+assert.equal(evaluateStepCompletion("academic_year", newSchoolSnapshot), "complete");
+assert.equal(evaluateStepCompletion("classes", newSchoolSnapshot), "incomplete");
+assert.equal(evaluateStepCompletion("sections", newSchoolSnapshot), "incomplete");
+assert.equal(evaluateStepCompletion("subjects", newSchoolSnapshot), "incomplete");
+assert.equal(evaluateStepCompletion("teachers", newSchoolSnapshot), "incomplete");
+assert.equal(evaluateStepCompletion("students", newSchoolSnapshot), "incomplete");
+assert.equal(evaluateStepCompletion("branding", newSchoolSnapshot), "complete");
+assert.equal(buildSetupJourney(superAdminChecklistAcl, newSchoolSnapshot).readyForOperations, false);
 
-// 4b. Fully configured school
-const fullyConfiguredStatus = evaluateChecklist({
-  academicYears: [{ id: "y1", name: "2026-27", isActive: true }],
-  classes: [{ id: "c1", name: "Grade 1" }],
-  sections: [{ id: "s1", label: "Grade 1 - A" }],
-  subjects: [{ id: "sub1", name: "Tamil" }],
+const fullyConfiguredSnapshot: SetupSnapshot = {
+  academicYearCount: 1,
+  classCount: 1,
+  sectionCount: 1,
+  subjectCount: 1,
   teacherCount: 5,
   studentCount: 50,
   schoolName: "Arulneri School",
-});
-assert.equal(fullyConfiguredStatus.classesComplete, true, "Classes complete");
-assert.equal(fullyConfiguredStatus.subjectsComplete, true, "Subjects complete");
-assert.equal(fullyConfiguredStatus.teachersComplete, true, "Teachers complete");
-assert.equal(fullyConfiguredStatus.studentsComplete, true, "Students complete");
+};
+const fullyConfiguredJourney = buildSetupJourney(superAdminChecklistAcl, fullyConfiguredSnapshot);
+assert.equal(fullyConfiguredJourney.readyForOperations, true);
+assert.equal(evaluateStepCompletion("classes", fullyConfiguredSnapshot), "complete");
+assert.equal(evaluateStepCompletion("subjects", fullyConfiguredSnapshot), "complete");
+assert.equal(evaluateStepCompletion("teachers", fullyConfiguredSnapshot), "complete");
+assert.equal(evaluateStepCompletion("students", fullyConfiguredSnapshot), "complete");
 
 console.log("✓ Setup checklist evaluation tests passed");
 
