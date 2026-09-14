@@ -51,3 +51,42 @@ export function checkRolesRouteAccess(
   }
   return { allowed: false, reason: "Unknown route" };
 }
+
+export function validateScopeInput(scope: {
+  scopeType: string;
+  classId?: string | null;
+  sectionId?: string | null;
+  subjectId?: string | null;
+  studentId?: string | null;
+}): { valid: boolean; error?: string } {
+  switch (scope.scopeType) {
+    case "school":
+      if (scope.classId || scope.sectionId || scope.subjectId || scope.studentId) {
+        return { valid: false, error: "School scope must not specify class, section, subject, or student" };
+      }
+      return { valid: true };
+    case "class":
+      if (!scope.classId || scope.sectionId || scope.subjectId || scope.studentId) {
+        return { valid: false, error: "Class scope requires class and must not specify section, subject, or student" };
+      }
+      return { valid: true };
+    case "section":
+      if (!scope.classId || !scope.sectionId || scope.subjectId || scope.studentId) {
+        return { valid: false, error: "Section scope requires class and section, and must not specify subject or student" };
+      }
+      return { valid: true };
+    case "subject":
+      if (!scope.classId || !scope.sectionId || !scope.subjectId || scope.studentId) {
+        return { valid: false, error: "Subject scope requires class, section, and subject, and must not specify student" };
+      }
+      return { valid: true };
+    case "self":
+    case "children":
+      if (!scope.studentId || scope.classId || scope.sectionId || scope.subjectId) {
+        return { valid: false, error: `${scope.scopeType} scope requires student and must not specify class, section, or subject` };
+      }
+      return { valid: true };
+    default:
+      return { valid: false, error: `Unsupported scope type: ${scope.scopeType}` };
+  }
+}

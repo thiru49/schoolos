@@ -64,6 +64,18 @@ async function main() {
   const classB = await prisma.class.findFirstOrThrow({ where: { schoolId: schoolB.id } });
   const sectionB = await prisma.section.findFirstOrThrow({ where: { schoolId: schoolB.id, classId: classB.id } });
 
+  const subjectA = await prisma.subject.findFirstOrThrow({ where: { schoolId: schoolA.id } });
+  let subjectB = await prisma.subject.findFirst({ where: { schoolId: schoolB.id } });
+  if (!subjectB) {
+    await prisma.$executeRaw`SELECT set_config('app.school_id', ${schoolB.id}, false)`;
+    subjectB = await prisma.subject.create({
+      data: {
+        schoolId: schoolB.id,
+        name: `Subject-B-${Date.now()}`,
+      },
+    });
+  }
+
   console.log("✓ Fixtures loaded successfully");
 
   // ============================================================================
@@ -156,7 +168,19 @@ async function main() {
     throw new Error("User detail ID mismatch");
   }
 
-  console.log("✓ Test 3 Passed: Authorized user can list roles and view user details");
+  const subjectsListRes = await request("/roles/subjects", adminA.accessToken);
+  if (!subjectsListRes.ok) {
+    throw new Error(`Expected 200 for admin GET /roles/subjects, got ${subjectsListRes.status}`);
+  }
+  const subjectsList = (await subjectsListRes.json()) as { id: string; name: string }[];
+  if (!subjectsList.some((s) => s.id === subjectA.id)) {
+    throw new Error("School A subjects missing from /roles/subjects");
+  }
+  if (subjectsList.some((s) => s.id === subjectB.id)) {
+    throw new Error("Cross-tenant leakage: School B subject present in School A /roles/subjects");
+  }
+
+  console.log("✓ Test 3 Passed: Authorized user can list roles, subjects, and view user details");
 
   // ============================================================================
   // TEST 4: Privilege escalation protection
@@ -235,6 +259,18 @@ async function main() {
     throw new Error(`Expected 400 for cross-tenant sectionId scope, got ${crossScopeSectionRes.status}`);
   }
 
+  if (subjectB) {
+    const crossScopeSubjectRes = await request(`/roles/users/${sampleUserA.id}/scopes`, adminA.accessToken, {
+      method: "PUT",
+      body: JSON.stringify({
+        scopes: [{ scopeType: "subject", classId: classA.id, sectionId: sectionA.id, subjectId: subjectB.id }],
+      }),
+    });
+    if (crossScopeSubjectRes.status !== 400) {
+      throw new Error(`Expected 400 for cross-tenant subjectId scope, got ${crossScopeSubjectRes.status}`);
+    }
+  }
+
   console.log("✓ Test 7 Passed: Cross-tenant scope references rejected");
 
   // ============================================================================
@@ -260,6 +296,17 @@ async function main() {
   });
   if (invalidSectionScope.status !== 400) {
     throw new Error(`Expected 400 for section scope missing sectionId, got ${invalidSectionScope.status}`);
+  }
+
+  // Subject scope without subjectId
+  const invalidSubjectScope = await request(`/roles/users/${sampleUserA.id}/scopes`, adminA.accessToken, {
+    method: "PUT",
+    body: JSON.stringify({
+      scopes: [{ scopeType: "subject", classId: classA.id, sectionId: sectionA.id }],
+    }),
+  });
+  if (invalidSubjectScope.status !== 400) {
+    throw new Error(`Expected 400 for subject scope missing subjectId, got ${invalidSubjectScope.status}`);
   }
 
   console.log("✓ Test 8 Passed: Invalid scope shape combinations rejected");
@@ -304,7 +351,7 @@ async function main() {
   if (!updateScopesRes.ok) {
     throw new Error(`Failed to update scopes: ${updateScopesRes.status} ${await updateScopesRes.text()}`);
   }
-  const scopeResult = (await updateScopesRes.json()) as { scopes: { type: string; classId?: string; sectionId?: string }[] };
+  const scopeResult = (await updateScopesRes.json()) as { scopes: { type: string; classId?: string; sectionId?: string; subjectId?: string }[] };
   if (
     scopeResult.scopes.length !== 1 ||
     scopeResult.scopes[0].type !== "section" ||
@@ -313,7 +360,26 @@ async function main() {
     throw new Error("Scope update was not applied properly");
   }
 
-  console.log("✓ Test 9 Passed: Transactional role and scope replacement verified");
+  // Step 9d: Update scopes to subject scope
+  const updateSubjectScopeRes = await request(`/roles/users/${sampleUserA.id}/scopes`, adminA.accessToken, {
+    method: "PUT",
+    body: JSON.stringify({
+      scopes: [{ scopeType: "subject", classId: classA.id, sectionId: sectionA.id, subjectId: subjectA.id }],
+    }),
+  });
+  if (!updateSubjectScopeRes.ok) {
+    throw new Error(`Failed to update subject scope: ${updateSubjectScopeRes.status} ${await updateSubjectScopeRes.text()}`);
+  }
+  const subjectScopeResult = (await updateSubjectScopeRes.json()) as { scopes: { type: string; classId?: string; sectionId?: string; subjectId?: string }[] };
+  if (
+    subjectScopeResult.scopes.length !== 1 ||
+    subjectScopeResult.scopes[0].type !== "subject" ||
+    subjectScopeResult.scopes[0].subjectId !== subjectA.id
+  ) {
+    throw new Error("Subject scope update was not applied properly");
+  }
+
+  console.log("✓ Test 9 Passed: Transactional role and scope replacement (including subject scope) verified");
 
   // ============================================================================
   // TEST 10: Audit event creation

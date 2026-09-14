@@ -75,6 +75,20 @@ export class RbacService {
     });
   }
 
+  async listSubjects(schoolId: string) {
+    return this.prisma.withSchool(schoolId, async (tx) => {
+      const subjects = await tx.subject.findMany({
+        where: { schoolId },
+        orderBy: { name: "asc" },
+      });
+
+      return subjects.map((s) => ({
+        id: s.id,
+        name: s.name,
+      }));
+    });
+  }
+
   async listSchoolUsers(schoolId: string, query?: UserListQueryInput) {
     return this.prisma.withSchool(schoolId, async (tx) => {
       const where: Prisma.UserWhereInput = { schoolId };

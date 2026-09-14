@@ -821,6 +821,7 @@ export function createApiClient(options: {
     },
     roles: {
       list: () => request<RoleSummary[]>("/roles"),
+      listSubjects: () => request<{ id: string; name: string }[]>("/roles/subjects"),
       listUsers: (query?: UserListQueryInput) => {
         const q = new URLSearchParams();
         if (query?.search) q.set("search", query.search);

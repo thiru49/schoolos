@@ -6,6 +6,7 @@ import {
   canViewRoles,
   checkRolesRouteAccess,
   hasSchoolScope,
+  validateScopeInput,
   type RolesAcl,
 } from "../features/rbac/roles-policy";
 
@@ -86,13 +87,60 @@ assert.equal(
 console.log("✓ Privilege escalation prevention tests passed");
 
 // ============================================================================
-// 3. Scope Evaluation
+// 3. Scope Evaluation & Validation (including Subject Scope)
 // ============================================================================
 assert.equal(hasSchoolScope(superAdminAcl), true);
 assert.equal(hasSchoolScope(teacherAcl), false);
 assert.equal(hasSchoolScope(limitedAdminAcl), false);
 
-console.log("✓ Scope evaluation tests passed");
+// Valid subject scope
+const validSubject = validateScopeInput({
+  scopeType: "subject",
+  classId: "cls-1",
+  sectionId: "sec-1",
+  subjectId: "sub-1",
+});
+assert.equal(validSubject.valid, true, "Valid subject scope with class, section, subject passes");
+
+// Invalid subject scopes missing parts of dependency chain
+const missingSubject = validateScopeInput({
+  scopeType: "subject",
+  classId: "cls-1",
+  sectionId: "sec-1",
+});
+assert.equal(missingSubject.valid, false, "Subject scope missing subjectId fails");
+
+const missingSection = validateScopeInput({
+  scopeType: "subject",
+  classId: "cls-1",
+  subjectId: "sub-1",
+});
+assert.equal(missingSection.valid, false, "Subject scope missing sectionId fails");
+
+const missingClass = validateScopeInput({
+  scopeType: "subject",
+  sectionId: "sec-1",
+  subjectId: "sub-1",
+});
+assert.equal(missingClass.valid, false, "Subject scope missing classId fails");
+
+const subjectWithStudent = validateScopeInput({
+  scopeType: "subject",
+  classId: "cls-1",
+  sectionId: "sec-1",
+  subjectId: "sub-1",
+  studentId: "stu-1",
+});
+assert.equal(subjectWithStudent.valid, false, "Subject scope with studentId fails");
+
+// Valid school, class, section, self, children
+assert.equal(validateScopeInput({ scopeType: "school" }).valid, true);
+assert.equal(validateScopeInput({ scopeType: "class", classId: "cls-1" }).valid, true);
+assert.equal(validateScopeInput({ scopeType: "section", classId: "cls-1", sectionId: "sec-1" }).valid, true);
+assert.equal(validateScopeInput({ scopeType: "self", studentId: "stu-1" }).valid, true);
+assert.equal(validateScopeInput({ scopeType: "children", studentId: "stu-1" }).valid, true);
+
+console.log("✓ Scope evaluation and subject scope validation tests passed");
 
 console.log("========================================================");
 console.log("ALL ACL-002 WEB ROLES TESTS PASSED");

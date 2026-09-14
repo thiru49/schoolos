@@ -62,6 +62,7 @@ export function RolesManagementBoard() {
   const [users, setUsers] = useState<UserRoleDetail[]>([]);
   const [roles, setRoles] = useState<RoleSummary[]>([]);
   const [sections, setSections] = useState<SectionOption[]>([]);
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +83,7 @@ export function RolesManagementBoard() {
   const [newScopeType, setNewScopeType] = useState<string>("school");
   const [newClassId, setNewClassId] = useState<string>("");
   const [newSectionId, setNewSectionId] = useState<string>("");
+  const [newSubjectId, setNewSubjectId] = useState<string>("");
   const [savingScopes, setSavingScopes] = useState(false);
 
   const routeAccess = useMemo(() => checkRolesRouteAccess("/roles", acl), [acl]);
@@ -92,14 +94,16 @@ export function RolesManagementBoard() {
     setError(null);
     try {
       const client = api();
-      const [allRoles, allUsers, allSections] = await Promise.all([
+      const [allRoles, allUsers, allSections, allSubjects] = await Promise.all([
         client.roles.list(),
         client.roles.listUsers(),
         client.academics.sections().catch(() => [] as SectionOption[]),
+        client.roles.listSubjects().catch(() => client.subjects.list().catch(() => [] as { id: string; name: string }[])),
       ]);
       setRoles(allRoles);
       setUsers(allUsers);
       setSections(allSections);
+      setSubjects(allSubjects);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load role assignment data";
       setError(msg);
@@ -199,6 +203,7 @@ export function RolesManagementBoard() {
     setNewScopeType("school");
     setNewClassId("");
     setNewSectionId("");
+    setNewSubjectId("");
     setScopeDialogOpen(true);
   };
 
@@ -211,11 +216,20 @@ export function RolesManagementBoard() {
       toast.error("Please select both a class and section for section-level scope");
       return;
     }
+    if (newScopeType === "subject" && (!newClassId || !newSectionId || !newSubjectId)) {
+      toast.error("Please select a class, section, and subject for subject-level scope");
+      return;
+    }
 
     const newScope: AclScope = {
       type: newScopeType as AclScope["type"],
-      classId: newScopeType === "class" || newScopeType === "section" ? newClassId : undefined,
-      sectionId: newScopeType === "section" ? newSectionId : undefined,
+      classId:
+        newScopeType === "class" || newScopeType === "section" || newScopeType === "subject"
+          ? newClassId
+          : undefined,
+      sectionId:
+        newScopeType === "section" || newScopeType === "subject" ? newSectionId : undefined,
+      subjectId: newScopeType === "subject" ? newSubjectId : undefined,
     };
 
     // Check for duplicate
@@ -223,7 +237,8 @@ export function RolesManagementBoard() {
       (s) =>
         s.type === newScope.type &&
         s.classId === newScope.classId &&
-        s.sectionId === newScope.sectionId,
+        s.sectionId === newScope.sectionId &&
+        s.subjectId === newScope.subjectId,
     );
     if (exists) {
       toast.error("This scope is already added");
@@ -233,6 +248,7 @@ export function RolesManagementBoard() {
     setEditingScopes([...editingScopes, newScope]);
     setNewClassId("");
     setNewSectionId("");
+    setNewSubjectId("");
   };
 
   const handleRemoveScope = (index: number) => {
@@ -281,8 +297,14 @@ export function RolesManagementBoard() {
         return <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200">Self Only</Badge>;
       case "children":
         return <Badge className="bg-amber-50 text-amber-800 border-amber-200">Linked Children</Badge>;
-      case "subject":
-        return <Badge className="bg-blue-50 text-blue-800 border-blue-200">Subject</Badge>;
+      case "subject": {
+        const sec = sections.find((s) => s.id === scope.sectionId);
+        const sub = subjects.find((s) => s.id === scope.subjectId);
+        const secLabel = sec ? `${sec.className}-${sec.name}` : "";
+        const subLabel = sub ? sub.name : (scope.subjectId ? `Subject (${scope.subjectId.slice(0, 8)})` : "Subject");
+        const fullLabel = secLabel ? `${secLabel} · ${subLabel}` : subLabel;
+        return <Badge className="bg-blue-50 text-blue-800 border-blue-200">{fullLabel}</Badge>;
+      }
       default:
         return <Badge>{scope.type}</Badge>;
     }
@@ -543,7 +565,8 @@ export function RolesManagementBoard() {
                         {formatScopeBadge(scope)}
                         <span className="text-xs text-slate-600 font-mono">
                           {scope.classId && `classId: ${scope.classId.slice(0, 8)}... `}
-                          {scope.sectionId && `secId: ${scope.sectionId.slice(0, 8)}...`}
+                          {scope.sectionId && `secId: ${scope.sectionId.slice(0, 8)}... `}
+                          {scope.subjectId && `subId: ${scope.subjectId.slice(0, 8)}...`}
                         </span>
                       </div>
                       <button
@@ -572,17 +595,19 @@ export function RolesManagementBoard() {
                       setNewScopeType(e.target.value);
                       setNewClassId("");
                       setNewSectionId("");
+                      setNewSubjectId("");
                     }}
                   >
                     <option value="school">School-wide</option>
                     <option value="class">Class</option>
                     <option value="section">Section</option>
+                    <option value="subject">Subject</option>
                     <option value="self">Self (Student)</option>
                     <option value="children">Children (Parent)</option>
                   </Select>
                 </div>
 
-                {(newScopeType === "class" || newScopeType === "section") && (
+                {(newScopeType === "class" || newScopeType === "section" || newScopeType === "subject") && (
                   <div>
                     <label className="text-xs text-slate-500 mb-1 block">Class</label>
                     <Select
@@ -590,6 +615,7 @@ export function RolesManagementBoard() {
                       onChange={(e) => {
                         setNewClassId(e.target.value);
                         setNewSectionId("");
+                        setNewSubjectId("");
                       }}
                     >
                       <option value="">Select Class...</option>
@@ -602,18 +628,39 @@ export function RolesManagementBoard() {
                   </div>
                 )}
 
-                {newScopeType === "section" && (
-                  <div className="sm:col-span-2">
+                {(newScopeType === "section" || newScopeType === "subject") && (
+                  <div className={newScopeType === "section" ? "sm:col-span-2" : ""}>
                     <label className="text-xs text-slate-500 mb-1 block">Section</label>
                     <Select
                       value={newSectionId}
-                      onChange={(e) => setNewSectionId(e.target.value)}
+                      onChange={(e) => {
+                        setNewSectionId(e.target.value);
+                        setNewSubjectId("");
+                      }}
                       disabled={!newClassId}
                     >
                       <option value="">Select Section...</option>
                       {filteredSectionsForNewScope.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.className} - {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+
+                {newScopeType === "subject" && (
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1 block">Subject</label>
+                    <Select
+                      value={newSubjectId}
+                      onChange={(e) => setNewSubjectId(e.target.value)}
+                      disabled={!newSectionId}
+                    >
+                      <option value="">Select Subject...</option>
+                      {subjects.map((sub) => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name}
                         </option>
                       ))}
                     </Select>

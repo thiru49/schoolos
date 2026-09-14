@@ -19,6 +19,12 @@ export class RolesController {
     return this.rbac.listRoles(acl.schoolId);
   }
 
+  @Get("subjects")
+  @RequirePermission(PERMISSIONS.ROLES_ASSIGN)
+  listSubjects(@CurrentUser() acl: RequestAcl) {
+    return this.rbac.listSubjects(acl.schoolId);
+  }
+
   @Get("users")
   @RequirePermission(PERMISSIONS.ROLES_ASSIGN)
   listUsers(
