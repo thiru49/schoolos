@@ -57,23 +57,30 @@ export class AuthService {
 
   async refresh(body: unknown) {
     const input = refreshSchema.parse(body);
+    const school = await this.tenancy.getSchoolBySlug(input.slug);
     const hash = this.tokens.hashRefresh(input.refreshToken);
-    const stored = await this.prisma.refreshToken.findFirst({
-      where: { tokenHash: hash, expiresAt: { gt: new Date() } },
-    });
-    if (!stored) throw new UnauthorizedException("Invalid refresh token");
 
-    return this.prisma.withSchool(stored.schoolId, async (tx) => {
+    return this.prisma.withSchool(school.id, async (tx) => {
+      const stored = await tx.refreshToken.findFirst({
+        where: {
+          schoolId: school.id,
+          tokenHash: hash,
+          expiresAt: { gt: new Date() },
+        },
+      });
+      if (!stored) throw new UnauthorizedException("Invalid refresh token");
+
       const user = await tx.user.findFirst({
-        where: { id: stored.userId, schoolId: stored.schoolId, isActive: true },
+        where: { id: stored.userId, schoolId: school.id, isActive: true },
       });
       if (!user) throw new UnauthorizedException("Invalid refresh token");
+
       await tx.refreshToken.delete({ where: { id: stored.id } });
-      const accessToken = this.tokens.signAccess({ sub: user.id, schoolId: stored.schoolId });
+      const accessToken = this.tokens.signAccess({ sub: user.id, schoolId: school.id });
       const refresh = this.tokens.newRefreshToken();
       await tx.refreshToken.create({
         data: {
-          schoolId: stored.schoolId,
+          schoolId: school.id,
           userId: user.id,
           tokenHash: refresh.hash,
           expiresAt: refresh.expiresAt,

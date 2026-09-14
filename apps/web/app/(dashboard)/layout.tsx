@@ -2,18 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ApiError } from "@schoolos/api-client";
 import { applyBrandingToDocument } from "../../lib/apply-branding";
 import type { AclPayload, BrandingPayload } from "@schoolos/types";
 import { api } from "../../lib/api";
 import { BrandingContextProvider } from "../../lib/branding-context";
 import { clearSession, getAccessToken, getSlug } from "../../lib/session";
 import { AppSidebar } from "../../components/shell/app-sidebar";
+import { ErrorState } from "../../components/states/error-state";
 import { Skeleton } from "../../components/ui/skeleton";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [acl, setAcl] = useState<AclPayload | null>(null);
   const [branding, setBranding] = useState<BrandingPayload | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -21,17 +25,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return;
     }
     const client = api();
+    setLoadError(null);
     Promise.all([client.me.acl(), client.branding.get(getSlug())])
       .then(([a, b]) => {
         setAcl(a);
         setBranding(b);
         applyBrandingToDocument(b);
       })
-      .catch(() => {
-        clearSession();
-        router.replace("/login");
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          clearSession();
+          router.replace("/login");
+          return;
+        }
+        setLoadError(err instanceof Error ? err.message : "Could not load session");
       });
-  }, [router]);
+  }, [router, reloadKey]);
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <ErrorState
+          message={loadError}
+          onRetry={() => {
+            setAcl(null);
+            setBranding(null);
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (!acl || !branding) {
     return (

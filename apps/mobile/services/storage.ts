@@ -9,6 +9,9 @@ const ACTIVE_ROLE = "active_role";
 export async function getAccess() {
   return SecureStore.getItemAsync(ACCESS);
 }
+export async function getRefresh() {
+  return SecureStore.getItemAsync(REFRESH);
+}
 export async function setTokens(access: string, refresh: string) {
   await SecureStore.setItemAsync(ACCESS, access);
   await SecureStore.setItemAsync(REFRESH, refresh);

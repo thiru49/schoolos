@@ -23,6 +23,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { PERMISSIONS } from "@schoolos/permissions";
+import { api } from "../../lib/api";
 import { useAppBranding } from "../../lib/branding-context";
 import { clearSession } from "../../lib/session";
 import { cn } from "../../lib/utils";
@@ -93,8 +94,15 @@ export function AppSidebar() {
       <button
         className="m-4 flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-white/70 hover:bg-white/10"
         onClick={() => {
-          clearSession();
-          router.replace("/login");
+          void (async () => {
+            try {
+              await api().auth.logout();
+            } catch {
+              /* revoke best-effort */
+            }
+            clearSession();
+            router.replace("/login");
+          })();
         }}
       >
         <LogOut size={16} />

@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useBranding } from "../../features/branding/branding-provider";
+import { api } from "../../services/api";
 import { clearActiveRole, clearTokens, setActiveRole as persistActiveRole } from "../../services/storage";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
@@ -57,6 +58,11 @@ export default function Profile() {
           label="Logout"
           variant="danger"
           onPress={async () => {
+            try {
+              await (await api()).auth.logout();
+            } catch {
+              /* revoke best-effort */
+            }
             await clearTokens();
             await clearActiveRole();
             setAcl(null);
