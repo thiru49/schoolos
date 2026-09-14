@@ -174,6 +174,14 @@ async function main() {
     throw new Error(`Expected 403 for assigning platform_owner, got ${platformOwnerRes.status}`);
   }
 
+  const platformOwnerComboRes = await request(`/roles/users/${sampleUserA.id}/roles`, adminA.accessToken, {
+    method: "PUT",
+    body: JSON.stringify({ roleCodes: ["teacher", "platform_owner"] }),
+  });
+  if (platformOwnerComboRes.status !== 403) {
+    throw new Error(`Expected 403 for assigning role combination with platform_owner, got ${platformOwnerComboRes.status}`);
+  }
+
   console.log("✓ Test 4 & 5 Passed: Privilege escalation & platform_owner prevention enforced");
 
   // ============================================================================

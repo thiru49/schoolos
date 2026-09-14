@@ -47,14 +47,13 @@ async function main() {
   });
   const subject = (await subjectRes.json()) as { id: string };
 
-  const examName = `RC Exam ${Date.now()}`;
   const examRes = await authed(admin.accessToken, "/exams", {
     method: "POST",
     body: JSON.stringify({
       classId: eightA.classId,
       sectionId: eightA.id,
       subjectId: subject.id,
-      name: examName,
+      name: `RC Exam ${Date.now()}`,
       examDate: "2026-09-25",
       maxScore: 100,
     }),
@@ -82,7 +81,7 @@ async function main() {
   const beforePub = await authed(student.accessToken, `/exams/report-card`);
   if (!beforePub.ok) throw new Error("student report-card GET failed " + (await beforePub.text()));
   const beforeBody = (await beforePub.json()) as { rows: { exam: string; score: number }[] };
-  if (beforeBody.rows.some((r) => r.exam === examName && r.score === 88)) {
+  if (beforeBody.rows.some((r) => r.exam.includes("RC Exam") && r.score === 88)) {
     throw new Error("unpublished marks appeared on report card");
   }
 

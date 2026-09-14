@@ -81,6 +81,43 @@ describe("RolesPolicy", () => {
       };
       expect(() => policy.assertCanGrantRole(callerAcl, role)).toThrow(ForbiddenException);
     });
+
+    it("evaluates effective permissions across multiple roles for privilege escalation", () => {
+      // Caller has permissions aggregated across multiple roles
+      const multiRoleAcl = createAcl({
+        roles: [ROLE_CODES.TEACHER, ROLE_CODES.ACADEMIC_ADMIN],
+        permissions: [
+          PERMISSIONS.ROLES_ASSIGN,
+          PERMISSIONS.TEACHERS_READ,
+          PERMISSIONS.CLASSES_MANAGE,
+        ],
+      });
+
+      const roleRequiringBoth: RoleWithPermissions = {
+        id: "r-combined",
+        code: "custom_coordinator",
+        name: "Custom Coordinator",
+        isSystem: false,
+        rolePermissions: [
+          { permission: { code: PERMISSIONS.TEACHERS_READ } },
+          { permission: { code: PERMISSIONS.CLASSES_MANAGE } },
+        ],
+      };
+
+      expect(() => policy.assertCanGrantRole(multiRoleAcl, roleRequiringBoth)).not.toThrow();
+
+      const roleRequiringThird: RoleWithPermissions = {
+        id: "r-unauthorized",
+        code: "custom_unauthorized",
+        name: "Custom Unauthorized",
+        isSystem: false,
+        rolePermissions: [
+          { permission: { code: PERMISSIONS.TEACHERS_READ } },
+          { permission: { code: PERMISSIONS.FEES_RECORD } },
+        ],
+      };
+      expect(() => policy.assertCanGrantRole(multiRoleAcl, roleRequiringThird)).toThrow(ForbiddenException);
+    });
   });
 
   describe("validateScopeShape (DB constraint enforcement)", () => {
