@@ -146,3 +146,27 @@ export type UserRoleDetail = {
   scopes: AclScope[];
 };
 
+export type ProvisionSchoolResult = {
+  schoolId: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  location: string;
+  receiptPrefix: string;
+  defaultLanguage: string;
+  attendanceMode: string;
+  branding: Pick<BrandingPayload, "theme" | "typography" | "logoUrl" | "poweredBy">;
+  admin: {
+    userId: string;
+    identifier: string;
+    displayName: string;
+    roleCode: string;
+  };
+  academicYear: {
+    id: string;
+    name: string;
+    isActive: boolean;
+  } | null;
+  publicBrandingUrl: string;
+};
+
