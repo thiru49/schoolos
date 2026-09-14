@@ -151,6 +151,171 @@ async function main() {
       throw new Error(`expected audit logs for academic writes, found ${auditCount}`);
     }
 
+    // --- Delete guards and attendance section-picker regression ---
+    const teacherSectionsRes = await authed(teacherA.accessToken, "/academics/sections");
+    if (teacherSectionsRes.status !== 200) {
+      throw new Error(
+        `teacher GET /academics/sections expected 200, got ${teacherSectionsRes.status}`,
+      );
+    }
+
+    const seedSections = (await (await authed(adminA.accessToken, "/academics/sections")).json()) as {
+      id: string;
+      classId: string;
+      label: string;
+    }[];
+    const eightA = seedSections.find((s) => s.label === "8-A");
+    if (!eightA) throw new Error("seed section 8-A missing for delete-guard tests");
+    if (!seedSections.some((s) => s.label === "9-B")) {
+      throw new Error("attendance section picker regression: admin missing seeded sections");
+    }
+
+    const activeYears = (await (await authed(adminA.accessToken, "/academics/years")).json()) as {
+      id: string;
+      isActive: boolean;
+    }[];
+    const activeYear = activeYears.find((y) => y.isActive);
+    if (!activeYear) throw new Error("seed active academic year missing");
+    const deleteActiveYear = await authed(adminA.accessToken, `/academics/years/${activeYear.id}`, {
+      method: "DELETE",
+    });
+    if (deleteActiveYear.status !== 409) {
+      throw new Error(`delete active year with classes expected 409, got ${deleteActiveYear.status}`);
+    }
+    const yearStillThere = await prisma.academicYear.findFirst({
+      where: { id: activeYear.id, schoolId: schoolA.id },
+    });
+    if (!yearStillThere) throw new Error("active academic year was deleted despite 409");
+
+    const deleteSeedClass = await authed(adminA.accessToken, `/academics/classes/${eightA.classId}`, {
+      method: "DELETE",
+    });
+    if (deleteSeedClass.status !== 409) {
+      throw new Error(`delete seeded class 8 expected 409, got ${deleteSeedClass.status}`);
+    }
+    const classStillThere = await prisma.class.findFirst({
+      where: { id: eightA.classId, schoolId: schoolA.id },
+    });
+    if (!classStillThere) throw new Error("seeded class 8 was deleted despite 409");
+
+    const deleteSeedSection = await authed(adminA.accessToken, `/academics/sections/${eightA.id}`, {
+      method: "DELETE",
+    });
+    if (deleteSeedSection.status !== 409) {
+      throw new Error(`delete seeded section 8-A expected 409, got ${deleteSeedSection.status}`);
+    }
+    const sectionStillThere = await prisma.section.findFirst({
+      where: { id: eightA.id, schoolId: schoolA.id },
+    });
+    if (!sectionStillThere) throw new Error("seeded section 8-A was deleted despite 409");
+
+    const due = new Date().toISOString().slice(0, 10);
+    const homeworkSection = await authed(adminA.accessToken, "/academics/sections", {
+      method: "POST",
+      body: JSON.stringify({ classId: cls.id, name: `HW-${suffix}` }),
+    });
+    if (!homeworkSection.ok) throw new Error("create homework test section failed " + (await homeworkSection.text()));
+    const hwSection = (await homeworkSection.json()) as { id: string };
+    createdSectionIds.push(hwSection.id);
+
+    const homework = await authed(adminA.accessToken, "/homework", {
+      method: "POST",
+      body: JSON.stringify({
+        classId: cls.id,
+        sectionId: hwSection.id,
+        title: `Guard-${suffix}`,
+        body: "dependency check",
+        dueDate: due,
+      }),
+    });
+    if (!homework.ok) throw new Error("create homework for section guard failed " + (await homework.text()));
+
+    const deleteHwSection = await authed(adminA.accessToken, `/academics/sections/${hwSection.id}`, {
+      method: "DELETE",
+    });
+    if (deleteHwSection.status !== 409) {
+      throw new Error(`delete section with homework expected 409, got ${deleteHwSection.status}`);
+    }
+    const hwSectionStillThere = await prisma.section.findFirst({
+      where: { id: hwSection.id, schoolId: schoolA.id },
+    });
+    if (!hwSectionStillThere) throw new Error("homework section deleted despite 409");
+
+    const deleteHwClass = await authed(adminA.accessToken, `/academics/classes/${cls.id}`, {
+      method: "DELETE",
+    });
+    if (deleteHwClass.status !== 409) {
+      throw new Error(`delete class with homework section expected 409, got ${deleteHwClass.status}`);
+    }
+    const hwClassStillThere = await prisma.class.findFirst({
+      where: { id: cls.id, schoolId: schoolA.id },
+    });
+    if (!hwClassStillThere) throw new Error("class with homework was deleted despite 409");
+
+    const teachers = (await (await authed(adminA.accessToken, "/teachers")).json()) as {
+      id: string;
+      employeeId: string;
+    }[];
+    const tch = teachers.find((t) => t.employeeId === "TCH-8A");
+    if (!tch) throw new Error("TCH-8A missing for subject delete guard");
+
+    const timetableSubject = await authed(adminA.accessToken, "/academics/subjects", {
+      method: "POST",
+      body: JSON.stringify({ name: `TT-${suffix}` }),
+    });
+    if (!timetableSubject.ok) throw new Error("create timetable subject failed " + (await timetableSubject.text()));
+    const ttSub = (await timetableSubject.json()) as { id: string };
+    createdSubjectIds.push(ttSub.id);
+
+    const period = await authed(adminA.accessToken, "/timetable", {
+      method: "POST",
+      body: JSON.stringify({
+        classId: cls.id,
+        sectionId: hwSection.id,
+        subjectId: ttSub.id,
+        teacherId: tch.id,
+        weekday: 7,
+        startTime: "09:00",
+        endTime: "09:45",
+      }),
+    });
+    if (!period.ok) throw new Error("create timetable period failed " + (await period.text()));
+    const periodRow = (await period.json()) as { id: string };
+
+    const deleteTtSubject = await authed(adminA.accessToken, `/academics/subjects/${ttSub.id}`, {
+      method: "DELETE",
+    });
+    if (deleteTtSubject.status !== 409) {
+      throw new Error(`delete subject used in timetable expected 409, got ${deleteTtSubject.status}`);
+    }
+    const ttSubjectStillThere = await prisma.subject.findFirst({
+      where: { id: ttSub.id, schoolId: schoolA.id },
+    });
+    if (!ttSubjectStillThere) throw new Error("timetable subject deleted despite 409");
+
+    await prisma.$executeRaw`SELECT set_config('app.school_id', ${schoolA.id}, false)`;
+    await prisma.timetablePeriod.deleteMany({ where: { id: periodRow.id, schoolId: schoolA.id } });
+    await prisma.homework.deleteMany({
+      where: { schoolId: schoolA.id, sectionId: hwSection.id, title: `Guard-${suffix}` },
+    });
+
+    const crossDeleteClass = await authed(adminB.accessToken, `/academics/classes/${cls.id}`, {
+      method: "DELETE",
+    });
+    if (crossDeleteClass.status !== 404) {
+      throw new Error(`cross-tenant delete class expected 404, got ${crossDeleteClass.status}`);
+    }
+    const crossDeleteSection = await authed(adminB.accessToken, `/academics/sections/${section.id}`, {
+      method: "DELETE",
+    });
+    if (crossDeleteSection.status !== 404) {
+      throw new Error(`cross-tenant delete section expected 404, got ${crossDeleteSection.status}`);
+    }
+    const tenantClassIntact = await prisma.class.findFirst({
+      where: { id: cls.id, schoolId: schoolA.id },
+    });
+    if (!tenantClassIntact) throw new Error("school A class removed by cross-tenant delete attempt");
+
     console.log("PASS: MST-002 academics RBAC, validation, audit, tenant isolation");
   } finally {
     await prisma.$executeRaw`SELECT set_config('app.school_id', ${schoolA.id}, false)`;

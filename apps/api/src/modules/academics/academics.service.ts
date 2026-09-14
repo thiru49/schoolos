@@ -278,6 +278,102 @@ export class AcademicsService {
     });
   }
 
+  private async assertClassDeletable(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    classId: string,
+  ) {
+    const studentCount = await tx.student.count({
+      where: { schoolId, classId },
+    });
+    if (studentCount > 0) {
+      throw new ConflictException("Cannot delete class with enrolled students");
+    }
+
+    const homeworkCount = await tx.homework.count({
+      where: { schoolId, classId },
+    });
+    if (homeworkCount > 0) {
+      throw new ConflictException("Cannot delete class with homework assignments");
+    }
+
+    const attendanceCount = await tx.attendance.count({
+      where: { schoolId, section: { classId, schoolId } },
+    });
+    if (attendanceCount > 0) {
+      throw new ConflictException("Cannot delete class with attendance records");
+    }
+
+    const timetableCount = await tx.timetablePeriod.count({
+      where: { schoolId, classId },
+    });
+    if (timetableCount > 0) {
+      throw new ConflictException("Cannot delete class used in timetable");
+    }
+
+    const examCount = await tx.exam.count({
+      where: { schoolId, classId },
+    });
+    if (examCount > 0) {
+      throw new ConflictException("Cannot delete class with exams");
+    }
+
+    const markCount = await tx.mark.count({
+      where: { schoolId, exam: { classId, schoolId } },
+    });
+    if (markCount > 0) {
+      throw new ConflictException("Cannot delete class with marks");
+    }
+  }
+
+  private async assertSectionDeletable(
+    tx: Prisma.TransactionClient,
+    schoolId: string,
+    sectionId: string,
+  ) {
+    const studentCount = await tx.student.count({
+      where: { schoolId, sectionId },
+    });
+    if (studentCount > 0) {
+      throw new ConflictException("Cannot delete section with enrolled students");
+    }
+
+    const homeworkCount = await tx.homework.count({
+      where: { schoolId, sectionId },
+    });
+    if (homeworkCount > 0) {
+      throw new ConflictException("Cannot delete section with homework assignments");
+    }
+
+    const attendanceCount = await tx.attendance.count({
+      where: { schoolId, sectionId },
+    });
+    if (attendanceCount > 0) {
+      throw new ConflictException("Cannot delete section with attendance records");
+    }
+
+    const timetableCount = await tx.timetablePeriod.count({
+      where: { schoolId, sectionId },
+    });
+    if (timetableCount > 0) {
+      throw new ConflictException("Cannot delete section used in timetable");
+    }
+
+    const examCount = await tx.exam.count({
+      where: { schoolId, sectionId },
+    });
+    if (examCount > 0) {
+      throw new ConflictException("Cannot delete section with exams");
+    }
+
+    const markCount = await tx.mark.count({
+      where: { schoolId, exam: { sectionId, schoolId } },
+    });
+    if (markCount > 0) {
+      throw new ConflictException("Cannot delete section with marks");
+    }
+  }
+
   removeClass(acl: RequestAcl, id: string) {
     this.policy.assertManageClasses(acl);
     return this.prisma.withSchool(acl.schoolId, async (tx) => {
@@ -286,12 +382,7 @@ export class AcademicsService {
       });
       if (!existing) throw new NotFoundException("Class not found");
 
-      const studentCount = await tx.student.count({
-        where: { schoolId: acl.schoolId, classId: id },
-      });
-      if (studentCount > 0) {
-        throw new ConflictException("Cannot delete class with enrolled students");
-      }
+      await this.assertClassDeletable(tx, acl.schoolId, id);
 
       await tx.class.delete({ where: { id, schoolId: acl.schoolId } });
       await this.audit(tx, acl, PERMISSIONS.CLASSES_MANAGE, "class", id, {
@@ -365,12 +456,7 @@ export class AcademicsService {
       });
       if (!existing) throw new NotFoundException("Section not found");
 
-      const studentCount = await tx.student.count({
-        where: { schoolId: acl.schoolId, sectionId: id },
-      });
-      if (studentCount > 0) {
-        throw new ConflictException("Cannot delete section with enrolled students");
-      }
+      await this.assertSectionDeletable(tx, acl.schoolId, id);
 
       await tx.section.delete({ where: { id, schoolId: acl.schoolId } });
       await this.audit(tx, acl, PERMISSIONS.CLASSES_MANAGE, "section", id, {
