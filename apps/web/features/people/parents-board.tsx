@@ -36,6 +36,8 @@ export function ParentsBoard() {
   const [password, setPassword] = useState("");
   const [studentId, setStudentId] = useState("");
   const [linkStudentId, setLinkStudentId] = useState("");
+  const [savingCreate, setSavingCreate] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -76,6 +78,8 @@ export function ParentsBoard() {
   }, []);
 
   async function create() {
+    if (savingCreate) return;
+    setSavingCreate(true);
     try {
       await api().parents.create({
         fullName,
@@ -90,11 +94,14 @@ export function ParentsBoard() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Create failed");
+    } finally {
+      setSavingCreate(false);
     }
   }
 
   async function saveEdit() {
-    if (!selected) return;
+    if (!selected || savingEdit) return;
+    setSavingEdit(true);
     try {
       await api().parents.update(selected.id, { fullName: editName, contact: editContact });
       toast.success("Parent updated");
@@ -103,6 +110,8 @@ export function ParentsBoard() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -155,7 +164,9 @@ export function ParentsBoard() {
               </option>
             ))}
           </select>
-          <Button onClick={() => void create()}>Add parent</Button>
+          <Button disabled={savingCreate} onClick={() => void create()}>
+            {savingCreate ? "Saving…" : "Add parent"}
+          </Button>
         </div>
       ) : null}
 
@@ -211,8 +222,10 @@ export function ParentsBoard() {
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
               <Input value={editContact} onChange={(e) => setEditContact(e.target.value)} />
               <div className="flex gap-2">
-                <Button onClick={() => void saveEdit()}>Save</Button>
-                <Button variant="secondary" onClick={() => setSelected(null)}>
+                <Button disabled={savingEdit} onClick={() => void saveEdit()}>
+                  {savingEdit ? "Saving…" : "Save"}
+                </Button>
+                <Button variant="secondary" disabled={savingEdit} onClick={() => setSelected(null)}>
                   Close
                 </Button>
               </div>
