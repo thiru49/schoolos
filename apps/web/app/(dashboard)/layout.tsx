@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@schoolos/api-client";
 import { applyBrandingToDocument } from "../../lib/apply-branding";
@@ -9,6 +9,7 @@ import { api } from "../../lib/api";
 import { BrandingContextProvider } from "../../lib/branding-context";
 import { clearSession, getAccessToken, getSlug } from "../../lib/session";
 import { AppSidebar } from "../../components/shell/app-sidebar";
+import { PageErrorBoundary } from "../../components/states/page-error-boundary";
 import { ErrorState } from "../../components/states/error-state";
 import { Skeleton } from "../../components/ui/skeleton";
 
@@ -72,7 +73,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <BrandingContextProvider branding={branding} acl={acl}>
       <div className="flex min-h-screen bg-canvas">
         <AppSidebar />
-        <main className="flex-1 p-8">{children}</main>
+        <main className="flex-1 p-8">
+          {React.createElement(PageErrorBoundary, null, children)}
+        </main>
       </div>
     </BrandingContextProvider>
   );
