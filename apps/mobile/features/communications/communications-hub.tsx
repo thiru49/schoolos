@@ -38,12 +38,14 @@ export function CommunicationsHub({
   initialTab = "notices",
   showBack = false,
   title,
+  activeRole: propActiveRole,
 }: {
   initialTab?: CommunicationsTab;
   showBack?: boolean;
   title?: string;
+  activeRole?: string;
 }) {
-  const { branding, theme, acl, selectedChild } = useBranding();
+  const { branding, theme, acl, activeRole: contextActiveRole, selectedChild } = useBranding();
   const router = useRouter();
 
   const [currentTab, setCurrentTab] = useState<CommunicationsTab>(initialTab);
@@ -63,8 +65,14 @@ export function CommunicationsHub({
   // Authenticated session context — strict, no invented fallbacks
   const schoolId = acl?.schoolId;
   const userId = acl?.userId;
-  const role = acl?.roles?.[0];
-  const isParent = acl?.roles?.includes("parent");
+
+  // Resolve active role from prop, context, or single-role membership (fail closed if indeterminate)
+  const role =
+    propActiveRole ??
+    contextActiveRole ??
+    (acl?.roles?.length === 1 ? acl.roles[0] : null);
+
+  const isParent = role === "parent" || (role == null && acl?.roles?.includes("parent"));
   const childId = isParent ? selectedChild?.studentId : undefined;
 
   const loadData = useCallback(async () => {

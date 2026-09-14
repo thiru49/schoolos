@@ -1,8 +1,10 @@
 import * as SecureStore from "expo-secure-store";
+import type { RoleCode } from "@schoolos/types";
 
 const ACCESS = "access";
 const REFRESH = "refresh";
 const SLUG = "slug";
+const ACTIVE_ROLE = "active_role";
 
 export async function getAccess() {
   return SecureStore.getItemAsync(ACCESS);
@@ -20,4 +22,14 @@ export async function getSlug() {
 }
 export async function setSlug(slug: string) {
   await SecureStore.setItemAsync(SLUG, slug);
+}
+export async function getActiveRole(): Promise<RoleCode | null> {
+  const role = await SecureStore.getItemAsync(ACTIVE_ROLE);
+  return (role as RoleCode) || null;
+}
+export async function setActiveRole(role: RoleCode): Promise<void> {
+  await SecureStore.setItemAsync(ACTIVE_ROLE, role);
+}
+export async function clearActiveRole(): Promise<void> {
+  await SecureStore.deleteItemAsync(ACTIVE_ROLE);
 }

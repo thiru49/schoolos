@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Font from "expo-font";
 import { api } from "../services/api";
-import { getAccess, getSlug } from "../services/storage";
+import { getAccess, getActiveRole, getSlug } from "../services/storage";
 import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
 import { AppText } from "../components/ui/AppText";
@@ -14,7 +14,7 @@ const TAMIL_FONT =
 
 export default function Splash() {
   const router = useRouter();
-  const { setBranding, theme, branding, setAcl } = useBranding();
+  const { setBranding, theme, branding, setAcl, setActiveRole } = useBranding();
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -32,7 +32,14 @@ export default function Splash() {
       const token = await getAccess();
       if (token) {
         try {
-          setAcl(await client.me.acl());
+          const aclRes = await client.me.acl();
+          setAcl(aclRes);
+          const savedRole = await getActiveRole();
+          if (savedRole && aclRes.roles.includes(savedRole)) {
+            setActiveRole(savedRole);
+          } else if (aclRes.roles.length === 1) {
+            setActiveRole(aclRes.roles[0]);
+          }
           void registerPushToken();
           router.replace("/(tabs)/home");
           return;

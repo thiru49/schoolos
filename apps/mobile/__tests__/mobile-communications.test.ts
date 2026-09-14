@@ -403,18 +403,51 @@ async function testFailedMarkReadStaysUnread() {
   console.log("✓ Failed mark-read keeps notification unread and surfaces error tests passed");
 }
 
+// 9. Same user + same school + different active roles => different communications cache keys
+function testSameUserDifferentActiveRolesPartitioning() {
+  const schoolId = "school-main";
+  const userId = "user-multi-role";
+
+  const keyTeacher = buildCommunicationsCacheKey(schoolId, userId, "teacher");
+  const keyParent = buildCommunicationsCacheKey(schoolId, userId, "parent", "child-1");
+  const keyStudent = buildCommunicationsCacheKey(schoolId, userId, "student");
+
+  assert.ok(keyTeacher);
+  assert.ok(keyParent);
+  assert.ok(keyStudent);
+
+  assert.notEqual(
+    keyTeacher,
+    keyParent,
+    "Same user with different active roles (teacher vs parent) must produce different cache keys",
+  );
+  assert.notEqual(
+    keyTeacher,
+    keyStudent,
+    "Same user with different active roles (teacher vs student) must produce different cache keys",
+  );
+  assert.notEqual(
+    keyParent,
+    keyStudent,
+    "Same user with different active roles (parent vs student) must produce different cache keys",
+  );
+
+  console.log("✓ Same user + same school + different active roles producing different cache keys test passed");
+}
+
 async function main() {
   testAudiencePresentation();
   testEventPartitioning();
   testHolidayOrdering();
   testCacheKeyPartitioning();
   testChildCachePartitioning();
+  testSameUserDifferentActiveRolesPartitioning();
   await testMissingAuthContextFailsClosed();
   await testSuccessfulMarkReadUpdatesCache();
   await testFailedMarkReadStaysUnread();
 
   console.log("\n========================================================");
-  console.log("ALL COM-003 MOBILE COMMUNICATIONS TESTS PASSED (8/8)");
+  console.log("ALL COM-003 MOBILE COMMUNICATIONS TESTS PASSED (9/9)");
   console.log("========================================================\n");
 }
 
