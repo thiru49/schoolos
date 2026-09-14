@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { api } from "../../lib/api";
-import { todayIso } from "../../lib/utils";
 import { useAppBranding } from "../../lib/branding-context";
 import { Skeleton } from "../../components/ui/skeleton";
 import { ErrorState } from "../../components/states/error-state";
@@ -101,34 +100,10 @@ export function DashboardView() {
         const teacherCount = teachersRes.status === "fulfilled" ? teachersRes.value.length : 0;
         const sections = sectionsRes.status === "fulfilled" ? sectionsRes.value : [];
 
-        let todayAttendance: SchoolAdminData["todayAttendance"] = null;
-        if (sections.length > 0) {
-          const firstSection = sections[0];
-          try {
-            const attData = await api().attendanceApi.list({
-              sectionId: firstSection.id,
-              date: todayIso(),
-            });
-            const marked = attData.records.filter((r) => r.status);
-            const present = attData.records.filter((r) => r.status === "P").length;
-            todayAttendance = {
-              sectionLabel: firstSection.label,
-              total: attData.records.length,
-              marked: marked.length,
-              present,
-              presentPct: marked.length ? Math.round((present / attData.records.length) * 100) : null,
-            };
-          } catch {
-            // Best effort sample attendance for school admin
-            todayAttendance = null;
-          }
-        }
-
         setSchoolAdminData({
           studentCount,
           teacherCount,
           sections,
-          todayAttendance,
         });
       } else if (role === "accounts_admin") {
         const [headsRes, paymentsRes] = await Promise.allSettled([

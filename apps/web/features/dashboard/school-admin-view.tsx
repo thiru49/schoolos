@@ -25,20 +25,11 @@ export interface SchoolAdminData {
   studentCount: number;
   teacherCount: number;
   sections: { id: string; label: string }[];
-  todayAttendance?: {
-    sectionLabel: string;
-    total: number;
-    marked: number;
-    present: number;
-    presentPct: number | null;
-  } | null;
 }
 
 export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
   const { acl } = useAppBranding();
   const hasFeesPermission = canAccessFees(acl);
-
-  const att = data.todayAttendance;
 
   return (
     <div className="space-y-6">
@@ -91,25 +82,16 @@ export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
 
         <Card className="flex flex-col justify-between">
           <div>
-            <CardTitle>Today's Attendance Sample</CardTitle>
-            {att ? (
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-display text-2xl font-semibold text-success">
-                  {att.presentPct == null ? "—" : `${att.presentPct}%`}
-                </span>
-                <span className="text-xs text-slate-500">
-                  present ({att.sectionLabel})
-                </span>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-slate-500">No attendance marked yet</p>
-            )}
+            <CardTitle>Today's Attendance</CardTitle>
+            <p className="mt-2 text-sm text-slate-600">
+              Section rosters & daily registers
+            </p>
           </div>
           <Link
             href="/attendance"
             className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
           >
-            Mark / View Attendance <ArrowRight size={12} />
+            Open Attendance Roster <ArrowRight size={12} />
           </Link>
         </Card>
       </div>
