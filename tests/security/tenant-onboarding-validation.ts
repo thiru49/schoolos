@@ -73,7 +73,9 @@ function pdfHas(hay: string, label: string, value: string) {
 }
 
 function pdfMustNotInclude(hay: string, label: string, value: string) {
-  if (!contains(hay, value)) return;
+  // Negative checks must be plaintext-only. Hex-nibble matching (contains)
+  // false-positives against compressed PDF streams.
+  if (!hay.includes(value)) return;
   throw new Error(`${label}: found "${value}"`);
 }
 
