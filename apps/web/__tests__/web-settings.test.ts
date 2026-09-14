@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PERMISSIONS } from "@schoolos/permissions";
 import {
   canReadSettings,
@@ -7,7 +10,7 @@ import {
   hasSchoolScope,
 } from "../features/settings/settings-policy";
 
-console.log("Starting SET-001 Web Settings Logic Tests...");
+console.log("Starting SET-001 / WEB-UX-006 Web Settings Logic Tests...");
 
 const superAdminAcl = {
   permissions: [
@@ -51,3 +54,39 @@ assert.equal(filterSidebar([PERMISSIONS.SCHOOL_SETTINGS_READ]).length, 1);
 assert.equal(filterSidebar([]).length, 0);
 
 console.log("✓ SET-001 web settings policy tests passed");
+
+// ============================================================================
+// WEB-UX-006: Settings/branding submit-safety contract (in-flight protection)
+// ============================================================================
+const settingsBoardSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../features/settings/settings-board.tsx"),
+  "utf8",
+);
+
+const submitSafetyPatterns: { pattern: RegExp; label: string }[] = [
+  { pattern: /const \[savingBranding, setSavingBranding\] = useState\(false\)/, label: "branding saving flag" },
+  { pattern: /const \[savingOps, setSavingOps\] = useState\(false\)/, label: "operational saving flag" },
+  { pattern: /const \[uploadingLogo, setUploadingLogo\] = useState\(false\)/, label: "logo upload flag" },
+  { pattern: /if \(!settings \|\| !canBrand \|\| savingBranding\) return/, label: "branding early return" },
+  { pattern: /if \(!settings \|\| !canOps \|\| savingOps\) return/, label: "operational early return" },
+  {
+    pattern: /if \(!file \|\| !settings \|\| !canBrand \|\| uploadingLogo\) return/,
+    label: "logo upload early return",
+  },
+  { pattern: /disabled=\{savingBranding\}/, label: "branding submit disabled" },
+  { pattern: /disabled=\{savingOps\}/, label: "operational submit disabled" },
+  { pattern: /disabled=\{readOnlyBranding \|\| savingBranding\}/, label: "branding fields disabled while saving" },
+  { pattern: /disabled=\{readOnlyOps \|\| savingOps\}/, label: "operational fields disabled while saving" },
+  { pattern: /Saving branding…/, label: "branding saving label" },
+  { pattern: /Saving…/, label: "operational saving label" },
+  { pattern: /Uploading…/, label: "logo uploading label" },
+  { pattern: /api\(\)\.branding\.update\(/, label: "tenant-scoped branding update API" },
+  { pattern: /api\(\)\.branding\.updateSettings\(/, label: "tenant-scoped settings update API" },
+  { pattern: /api\(\)\.branding\.uploadLogo\(/, label: "tenant-scoped logo upload API" },
+];
+
+for (const { pattern, label } of submitSafetyPatterns) {
+  assert.match(settingsBoardSource, pattern, `Missing submit-safety: ${label}`);
+}
+
+console.log("✓ WEB-UX-006 settings submit-safety contract tests passed");

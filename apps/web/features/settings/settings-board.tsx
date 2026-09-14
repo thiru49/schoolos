@@ -87,7 +87,7 @@ export function SettingsBoard() {
   }, [loadSettings]);
 
   async function saveBranding() {
-    if (!settings || !canBrand) return;
+    if (!settings || !canBrand || savingBranding) return;
     setSavingBranding(true);
     try {
       const updated = await api().branding.update({
@@ -111,7 +111,7 @@ export function SettingsBoard() {
   }
 
   async function saveOperational() {
-    if (!settings || !canOps) return;
+    if (!settings || !canOps || savingOps) return;
     setSavingOps(true);
     try {
       const updated = await api().branding.updateSettings({
@@ -130,7 +130,7 @@ export function SettingsBoard() {
   }
 
   async function onLogoSelected(file: File | undefined) {
-    if (!file || !settings || !canBrand) return;
+    if (!file || !settings || !canBrand || uploadingLogo) return;
     setUploadingLogo(true);
     try {
       const { logoUrl } = await api().branding.uploadLogo(file);
