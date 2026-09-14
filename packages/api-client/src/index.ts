@@ -40,22 +40,87 @@ export class ApiError extends Error {
 }
 
 type Tokens = { accessToken: string | null; refreshToken: string | null };
+type MaybeAsync<T> = T | Promise<T>;
 
 export function createApiClient(options: {
   baseUrl: string;
-  getTokens: () => Tokens;
-  setTokens?: (tokens: Tokens) => void;
+  getTokens: () => MaybeAsync<Tokens>;
+  getSlug?: () => MaybeAsync<string | null>;
+  setTokens?: (tokens: Tokens) => MaybeAsync<void>;
+  onAuthFailure?: () => MaybeAsync<void>;
 }) {
-  const { baseUrl, getTokens, setTokens } = options;
+  const { baseUrl, getTokens, getSlug, setTokens, onAuthFailure } = options;
+  let refreshInFlight: Promise<void> | null = null;
 
-  async function request<T>(path: string, init: RequestInit = {}, auth = true): Promise<T> {
+  async function resolve<T>(value: MaybeAsync<T>): Promise<T> {
+    return value instanceof Promise ? await value : value;
+  }
+
+  async function refreshSession(): Promise<void> {
+    if (!setTokens || !getSlug) {
+      throw new ApiError(401, "Session expired");
+    }
+    if (refreshInFlight) {
+      await refreshInFlight;
+      return;
+    }
+    refreshInFlight = (async () => {
+      const tokens = await resolve(getTokens());
+      const slug = await resolve(getSlug());
+      if (!tokens.refreshToken || !slug) {
+        throw new ApiError(401, "Session expired");
+      }
+      const res = await fetch(`${baseUrl}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, refreshToken: tokens.refreshToken }),
+      });
+      if (!res.ok) {
+        let message = res.statusText;
+        try {
+          const body = (await res.json()) as { message?: string };
+          if (body.message) message = body.message;
+        } catch {
+          /* ignore */
+        }
+        throw new ApiError(res.status, message);
+      }
+      const pair = (await res.json()) as TokenPair;
+      await resolve(
+        setTokens({ accessToken: pair.accessToken, refreshToken: pair.refreshToken }),
+      );
+    })();
+    try {
+      await refreshInFlight;
+    } finally {
+      refreshInFlight = null;
+    }
+  }
+
+  async function request<T>(
+    path: string,
+    init: RequestInit = {},
+    auth = true,
+    retried = false,
+  ): Promise<T> {
     const headers = new Headers(init.headers);
-    headers.set("Content-Type", "application/json");
+    if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
     if (auth) {
-      const { accessToken } = getTokens();
+      const { accessToken } = await resolve(getTokens());
       if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
     }
     const res = await fetch(`${baseUrl}${path}`, { ...init, headers });
+    if (res.status === 401 && auth && !retried && setTokens && getSlug) {
+      try {
+        await refreshSession();
+        return request(path, init, auth, true);
+      } catch (err) {
+        if (onAuthFailure) await resolve(onAuthFailure());
+        throw err instanceof ApiError ? err : new ApiError(401, "Session expired");
+      }
+    }
     if (!res.ok) {
       let message = res.statusText;
       try {
@@ -100,27 +165,39 @@ export function createApiClient(options: {
           body: JSON.stringify(body),
         }),
       uploadLogo: async (file: File) => {
-        const headers = new Headers();
-        const { accessToken } = getTokens();
-        if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch(`${baseUrl}/schools/branding/logo`, {
-          method: "POST",
-          headers,
-          body: form,
-        });
-        if (!res.ok) {
-          let message = res.statusText;
-          try {
-            const body = (await res.json()) as { message?: string };
-            if (body.message) message = body.message;
-          } catch {
-            /* ignore */
+        async function upload(retried = false): Promise<{ logoUrl: string }> {
+          const headers = new Headers();
+          const { accessToken } = await resolve(getTokens());
+          if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+          const form = new FormData();
+          form.append("file", file);
+          const res = await fetch(`${baseUrl}/schools/branding/logo`, {
+            method: "POST",
+            headers,
+            body: form,
+          });
+          if (res.status === 401 && !retried && setTokens && getSlug) {
+            try {
+              await refreshSession();
+              return upload(true);
+            } catch (err) {
+              if (onAuthFailure) await resolve(onAuthFailure());
+              throw err instanceof ApiError ? err : new ApiError(401, "Session expired");
+            }
           }
-          throw new ApiError(res.status, message);
+          if (!res.ok) {
+            let message = res.statusText;
+            try {
+              const body = (await res.json()) as { message?: string };
+              if (body.message) message = body.message;
+            } catch {
+              /* ignore */
+            }
+            throw new ApiError(res.status, message);
+          }
+          return (await res.json()) as { logoUrl: string };
         }
-        return (await res.json()) as { logoUrl: string };
+        return upload();
       },
     },
     auth: {
@@ -131,10 +208,10 @@ export function createApiClient(options: {
           false,
         ),
       logout: () => request<void>("/auth/logout", { method: "POST" }),
-      refresh: (refreshToken: string) =>
+      refresh: (slug: string, refreshToken: string) =>
         request<TokenPair>(
           "/auth/refresh",
-          { method: "POST", body: JSON.stringify({ refreshToken }) },
+          { method: "POST", body: JSON.stringify({ slug, refreshToken }) },
           false,
         ),
     },
