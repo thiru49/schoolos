@@ -3,12 +3,20 @@ import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { RoleCode } from "@schoolos/types";
 import { api } from "../services/api";
-import { getSlug, setActiveRole as persistActiveRole, setTokens } from "../services/storage";
+import {
+  clearActiveRole,
+  clearTokens,
+  getSlug,
+  setActiveRole as persistActiveRole,
+  setTokens,
+} from "../services/storage";
 import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
+import { brandingMatchesSlug, tenantSessionMatches } from "../features/tenant/tenant-policy";
 import { AppText } from "../components/ui/AppText";
 import { AppInput } from "../components/ui/AppInput";
 import { AppButton } from "../components/ui/AppButton";
+import { ChangeSchoolLink } from "../components/ui/ChangeSchoolLink";
 
 export default function Login() {
   const { role } = useLocalSearchParams<{ role: RoleCode }>();
@@ -33,7 +41,15 @@ export default function Login() {
         await persistActiveRole(role);
         setActiveRole(role);
       }
-      setAcl(await (await api()).me.acl());
+      const aclRes = await (await api()).me.acl();
+      if (branding && (!brandingMatchesSlug(branding, slug) || !tenantSessionMatches(branding, aclRes))) {
+        await clearTokens();
+        await clearActiveRole();
+        setActiveRole(null);
+        setError("This account does not belong to the selected school.");
+        return;
+      }
+      setAcl(aclRes);
       void registerPushToken();
       router.replace("/(tabs)/home");
     } catch (e) {
@@ -67,6 +83,7 @@ export default function Login() {
       <View className="mt-5">
         <AppButton label={loading ? "Signing in…" : "Sign in"} loading={loading} onPress={() => void submit()} />
       </View>
+      <ChangeSchoolLink />
     </View>
   );
 }

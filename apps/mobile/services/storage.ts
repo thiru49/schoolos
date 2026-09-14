@@ -20,11 +20,17 @@ export async function clearTokens() {
   await SecureStore.deleteItemAsync(ACCESS);
   await SecureStore.deleteItemAsync(REFRESH);
 }
+export async function getStoredSlug() {
+  return SecureStore.getItemAsync(SLUG);
+}
 export async function getSlug() {
-  return (await SecureStore.getItemAsync(SLUG)) ?? process.env.EXPO_PUBLIC_DEFAULT_SLUG ?? "arulneri";
+  return (await getStoredSlug()) ?? process.env.EXPO_PUBLIC_DEFAULT_SLUG ?? "arulneri";
 }
 export async function setSlug(slug: string) {
   await SecureStore.setItemAsync(SLUG, slug);
+}
+export async function clearSlug() {
+  await SecureStore.deleteItemAsync(SLUG);
 }
 export async function getActiveRole(): Promise<RoleCode | null> {
   const role = await SecureStore.getItemAsync(ACTIVE_ROLE);

@@ -1,38 +1,52 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { useRouter } from "expo-router";
-import * as Font from "expo-font";
 import { api } from "../services/api";
-import { getAccess, getActiveRole, getSlug } from "../services/storage";
+import { getAccess, getActiveRole, getStoredSlug } from "../services/storage";
 import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
+import { loadTenantBranding } from "../features/tenant/load-tenant-branding";
+import {
+  brandingMatchesSlug,
+  shouldPromptSchoolSelection,
+  tenantSessionMatches,
+} from "../features/tenant/tenant-policy";
+import { clearAuthSession } from "../features/tenant/tenant-session";
 import { AppText } from "../components/ui/AppText";
 import { AppButton } from "../components/ui/AppButton";
 
-const TAMIL_FONT =
-  "https://fonts.gstatic.com/s/notosanstamil/v27/ieVc2YdFI3GCY6SyQy1KfStzYKZgzN1z4VKFvNBh8ZKb1nc.ttf";
-
 export default function Splash() {
   const router = useRouter();
-  const { setBranding, theme, branding, setAcl, setActiveRole } = useBranding();
+  const { setBranding, theme, branding, setAcl, setActiveRole, setSelectedChild } = useBranding();
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setError(null);
     try {
-      const slug = await getSlug();
-      const client = await api();
-      const b = await client.branding.get(slug);
-      setBranding(b);
-      try {
-        await Font.loadAsync({ "Noto Sans Tamil": { uri: TAMIL_FONT } });
-      } catch {
-        // Fallback is handled by AppText if the remote font cannot load.
+      const storedSlug = await getStoredSlug();
+      if (shouldPromptSchoolSelection(storedSlug)) {
+        router.replace("/school-select");
+        return;
       }
+
+      const slug = storedSlug!;
+      const tenantBranding = await loadTenantBranding(slug);
+      if (!brandingMatchesSlug(tenantBranding, slug)) {
+        setError("School unavailable");
+        return;
+      }
+      setBranding(tenantBranding);
+
       const token = await getAccess();
       if (token) {
         try {
+          const client = await api();
           const aclRes = await client.me.acl();
+          if (!tenantSessionMatches(tenantBranding, aclRes)) {
+            await clearAuthSession({ setAcl, setActiveRole, setSelectedChild });
+            router.replace("/role-select");
+            return;
+          }
           setAcl(aclRes);
           const savedRole = await getActiveRole();
           if (savedRole && aclRes.roles.includes(savedRole)) {
@@ -44,6 +58,7 @@ export default function Splash() {
           router.replace("/(tabs)/home");
           return;
         } catch {
+          await clearAuthSession({ setAcl, setActiveRole, setSelectedChild });
           router.replace("/role-select");
           return;
         }

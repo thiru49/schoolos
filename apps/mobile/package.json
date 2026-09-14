@@ -5,7 +5,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "dev": "expo start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx __tests__/api-client-refresh.test.ts && tsx __tests__/mobile-communications.test.ts && tsx __tests__/mobile-tenant.test.ts"
   },
   "dependencies": {
     "@schoolos/api-client": "workspace:*",

@@ -1,6 +1,7 @@
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useBranding } from "../features/branding/branding-provider";
+import { ChangeSchoolLink } from "../components/ui/ChangeSchoolLink";
 import { AppText } from "../components/ui/AppText";
 
 const ROLES = [
@@ -30,6 +31,7 @@ export default function RoleSelect() {
           <AppText variant="caption">{r.ta}</AppText>
         </Pressable>
       ))}
+      <ChangeSchoolLink />
     </View>
   );
 }
