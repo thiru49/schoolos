@@ -127,3 +127,22 @@ export type LinkedChild = {
   className: string;
   sectionName: string;
 };
+
+export type RoleSummary = {
+  id: string;
+  code: string;
+  name: string;
+  isSystem: boolean;
+  permissions: PermissionCode[];
+};
+
+export type UserRoleDetail = {
+  id: string;
+  identifier: string;
+  displayName: string;
+  isActive: boolean;
+  schoolId: string;
+  roles: RoleSummary[];
+  scopes: AclScope[];
+};
+

@@ -15,6 +15,7 @@ import {
   LogOut,
   MessageSquare,
   Settings,
+  ShieldCheck,
   Sun,
   Users,
   UserRound,
@@ -42,6 +43,7 @@ const NAV = [
     icon: FileBarChart,
     permission: [PERMISSIONS.REPORTS_ATTENDANCE, PERMISSIONS.REPORTS_FEES, PERMISSIONS.REPORTS_PROGRESS],
   },
+  { href: "/roles", label: "Role Assignment", icon: ShieldCheck, permission: PERMISSIONS.ROLES_ASSIGN },
   { href: "/settings", label: "Settings", icon: Settings, permission: PERMISSIONS.SCHOOL_SETTINGS_READ },
 ];
 
