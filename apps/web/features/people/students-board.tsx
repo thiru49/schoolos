@@ -40,6 +40,8 @@ export function StudentsBoard() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [createSectionId, setCreateSectionId] = useState("");
+  const [savingCreate, setSavingCreate] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -86,8 +88,10 @@ export function StudentsBoard() {
   }, [sectionId]);
 
   async function create() {
+    if (savingCreate) return;
     const section = sections.find((s) => s.id === createSectionId);
     if (!section) return;
+    setSavingCreate(true);
     try {
       await api().students.create({
         admissionNumber,
@@ -103,12 +107,15 @@ export function StudentsBoard() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Create failed");
+    } finally {
+      setSavingCreate(false);
     }
   }
 
   async function saveEdit() {
-    if (!selected) return;
+    if (!selected || savingEdit) return;
     const section = sections.find((s) => s.id === editSectionId);
+    setSavingEdit(true);
     try {
       await api().students.update(selected.id, {
         fullName: editName,
@@ -120,6 +127,8 @@ export function StudentsBoard() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setSavingEdit(false);
     }
   }
 
@@ -155,7 +164,9 @@ export function StudentsBoard() {
             ))}
           </select>
           <Input type="password" placeholder="Login password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <Button onClick={() => void create()}>Add student</Button>
+          <Button disabled={savingCreate} onClick={() => void create()}>
+            {savingCreate ? "Saving…" : "Add student"}
+          </Button>
         </div>
       ) : null}
 
@@ -221,8 +232,10 @@ export function StudentsBoard() {
                 ))}
               </select>
               <div className="flex gap-2">
-                <Button onClick={() => void saveEdit()}>Save</Button>
-                <Button variant="secondary" onClick={() => setSelected(null)}>
+                <Button disabled={savingEdit} onClick={() => void saveEdit()}>
+                  {savingEdit ? "Saving…" : "Save"}
+                </Button>
+                <Button variant="secondary" disabled={savingEdit} onClick={() => setSelected(null)}>
                   Close
                 </Button>
               </div>
