@@ -3,7 +3,7 @@ import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { RoleCode } from "@schoolos/types";
 import { api } from "../services/api";
-import { getSlug, setTokens } from "../services/storage";
+import { getSlug, setActiveRole as persistActiveRole, setTokens } from "../services/storage";
 import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
 import { AppText } from "../components/ui/AppText";
@@ -13,7 +13,7 @@ import { AppButton } from "../components/ui/AppButton";
 export default function Login() {
   const { role } = useLocalSearchParams<{ role: RoleCode }>();
   const router = useRouter();
-  const { branding, theme, setAcl } = useBranding();
+  const { branding, theme, setAcl, setActiveRole } = useBranding();
   const [identifier, setIdentifier] = useState(
     role === "teacher" ? "TCH-8A" : role === "parent" ? "9000000001" : "AN2021-0001",
   );
@@ -29,6 +29,10 @@ export default function Login() {
       const client = await api();
       const res = await client.auth.login({ slug, roleHint: role, identifier, password });
       await setTokens(res.accessToken, res.refreshToken);
+      if (role) {
+        await persistActiveRole(role);
+        setActiveRole(role);
+      }
       setAcl(await (await api()).me.acl());
       void registerPushToken();
       router.replace("/(tabs)/home");
