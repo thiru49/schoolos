@@ -1,44 +1,138 @@
-import { Injectable } from "@nestjs/common";
-import type { BrandingPayload } from "@schoolos/types";
-import { brandingUpdateSchema } from "@schoolos/validation";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PERMISSIONS } from "@schoolos/permissions";
+import type { BrandingPayload, BrandingTheme, BrandingTypography } from "@schoolos/types";
+import { brandingUpdateSchema, schoolSettingsUpdateSchema } from "@schoolos/validation";
+import { resolveTypographyUpdate } from "./branding-typography";
+import type { RequestAcl } from "../../common/types/request-acl";
 import { PrismaService } from "../../prisma/prisma.service";
 import { TenancyService } from "../tenancy/tenancy.service";
+import { BrandingPolicy } from "./branding.policy";
 
 @Injectable()
 export class BrandingService {
   constructor(
     private readonly tenancy: TenancyService,
     private readonly prisma: PrismaService,
+    private readonly policy: BrandingPolicy,
   ) {}
+
+  private parseOrBadRequest<T>(schema: { parse: (val: unknown) => T }, data: unknown): T {
+    try {
+      return schema.parse(data);
+    } catch (err: unknown) {
+      const zodErr = err as { issues?: { message: string }[]; message?: string };
+      const msg =
+        zodErr?.issues?.map((i) => i.message).join("; ") || zodErr?.message || "Validation failed";
+      throw new BadRequestException(msg);
+    }
+  }
+
+  private async audit(
+    tx: Prisma.TransactionClient,
+    acl: RequestAcl,
+    action: string,
+    resource: string,
+    resourceId: string,
+    metadata?: Prisma.InputJsonValue,
+  ) {
+    await tx.auditLog.create({
+      data: {
+        schoolId: acl.schoolId,
+        actorUserId: acl.userId,
+        action,
+        resource,
+        resourceId,
+        metadata,
+      },
+    });
+  }
 
   async publicBySlug(slug: string): Promise<BrandingPayload> {
     const school = await this.tenancy.getSchoolBySlug(slug);
     return this.toPayload(school);
   }
 
-  async update(schoolId: string, body: unknown): Promise<BrandingPayload> {
-    const input = brandingUpdateSchema.parse(body);
-    const school = await this.prisma.withSchool(schoolId, async (tx) => {
-      return tx.school.update({
-        where: { id: schoolId },
+  async getSettings(acl: RequestAcl): Promise<BrandingPayload> {
+    this.policy.assertReadSettings(acl);
+    const school = await this.prisma.school.findUnique({ where: { id: acl.schoolId } });
+    if (!school) throw new NotFoundException("School not found");
+    return this.toPayload(school);
+  }
+
+  async updateSettings(acl: RequestAcl, body: unknown): Promise<BrandingPayload> {
+    this.policy.assertUpdateSettings(acl);
+    const input = this.parseOrBadRequest(schoolSettingsUpdateSchema, body);
+
+    const school = await this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const updated = await tx.school.update({
+        where: { id: acl.schoolId },
         data: {
-          name: input.schoolName,
-          tagline: input.tagline,
-          location: input.location,
           receiptPrefix: input.receiptPrefix,
           defaultLanguage: input.defaultLanguage,
           attendanceMode: input.attendanceMode,
-          theme: input.theme as object | undefined,
-          typography: input.typography as object | undefined,
         },
       });
+      await this.audit(tx, acl, PERMISSIONS.SCHOOL_SETTINGS_UPDATE, "school", acl.schoolId, {
+        receiptPrefix: input.receiptPrefix,
+        defaultLanguage: input.defaultLanguage,
+        attendanceMode: input.attendanceMode,
+      });
+      return updated;
     });
     return this.toPayload(school);
   }
 
-  async setLogoUrl(schoolId: string, logoUrl: string) {
-    return this.prisma.withSchool(schoolId, async (tx) => {
-      return tx.school.update({ where: { id: schoolId }, data: { logoUrl } });
+  async updateBranding(acl: RequestAcl, body: unknown): Promise<BrandingPayload> {
+    this.policy.assertUpdateBranding(acl);
+    const input = this.parseOrBadRequest(brandingUpdateSchema, body);
+
+    const school = await this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const current = await tx.school.findUniqueOrThrow({ where: { id: acl.schoolId } });
+      const currentTheme = current.theme as BrandingTheme;
+      const currentTypography = current.typography as BrandingTypography;
+
+      const nextTheme = input.theme
+        ? { ...currentTheme, ...input.theme }
+        : undefined;
+
+      const nextTypography = input.typography
+        ? resolveTypographyUpdate(currentTypography, input.typography)
+        : undefined;
+
+      const updated = await tx.school.update({
+        where: { id: acl.schoolId },
+        data: {
+          name: input.schoolName,
+          tagline: input.tagline,
+          location: input.location,
+          theme: nextTheme as object | undefined,
+          typography: nextTypography as object | undefined,
+        },
+      });
+      await this.audit(tx, acl, PERMISSIONS.SCHOOL_BRANDING_UPDATE, "school", acl.schoolId, {
+        schoolName: input.schoolName,
+        tagline: input.tagline,
+        location: input.location,
+        theme: input.theme,
+        typography: input.typography,
+      });
+      return updated;
+    });
+    return this.toPayload(school);
+  }
+
+  async setLogoUrl(acl: RequestAcl, logoUrl: string) {
+    this.policy.assertUpdateBranding(acl);
+    return this.prisma.withSchool(acl.schoolId, async (tx) => {
+      const updated = await tx.school.update({
+        where: { id: acl.schoolId },
+        data: { logoUrl },
+      });
+      await this.audit(tx, acl, PERMISSIONS.SCHOOL_BRANDING_UPDATE, "school", acl.schoolId, {
+        logoUrl,
+      });
+      return updated;
     });
   }
 

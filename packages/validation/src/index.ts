@@ -62,25 +62,58 @@ export const selectChildSchema = z.object({
   studentId: z.string().uuid(),
 });
 
-export const brandingUpdateSchema = z.object({
-  schoolName: z.string().min(1).optional(),
-  tagline: z.string().min(1).optional(),
-  location: z.string().min(1).optional(),
-  receiptPrefix: z.string().min(1).optional(),
-  defaultLanguage: z.string().min(2).optional(),
-  attendanceMode: z.enum(["daily"]).optional(),
-  theme: z
+const hexColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Must be a hex color like #0B3A6E");
+
+const fontAllowlist = [
+  "Plus Jakarta Sans",
+  "Inter",
+  "Poppins",
+  "Nunito",
+  "Noto Sans",
+  "Noto Sans Tamil",
+  "Hind Madurai",
+  "Roboto",
+  "Open Sans",
+] as const;
+
+export const brandingThemeUpdateSchema = z.object({
+  primary: hexColorSchema.optional(),
+  primaryDark: hexColorSchema.optional(),
+  accent: hexColorSchema.optional(),
+  background: hexColorSchema.optional(),
+  success: hexColorSchema.optional(),
+  warning: hexColorSchema.optional(),
+  danger: hexColorSchema.optional(),
+});
+
+export const brandingTypographyUpdateSchema = z.object({
+  preset: z.enum(["arulneri", "modern", "classic", "tamil-first"]).optional(),
+  families: z
     .object({
-      primary: z.string(),
-      primaryDark: z.string(),
-      accent: z.string(),
-      background: z.string(),
-      success: z.string(),
-      warning: z.string(),
-      danger: z.string(),
+      display: z.enum(fontAllowlist).optional(),
+      body: z.enum(fontAllowlist).optional(),
+      tamil: z.enum(fontAllowlist).optional(),
     })
     .optional(),
-  typography: z.record(z.unknown()).optional(),
+  scale: z
+    .object({
+      md: z.number().int().min(12).max(20),
+    })
+    .optional(),
+});
+
+export const brandingUpdateSchema = z.object({
+  schoolName: z.string().trim().min(1).max(200).optional(),
+  tagline: z.string().trim().min(1).max(500).optional(),
+  location: z.string().trim().min(1).max(500).optional(),
+  theme: brandingThemeUpdateSchema.optional(),
+  typography: brandingTypographyUpdateSchema.optional(),
+});
+
+export const schoolSettingsUpdateSchema = z.object({
+  receiptPrefix: z.string().trim().min(1).max(50).optional(),
+  defaultLanguage: z.enum(["en", "ta"]).optional(),
+  attendanceMode: z.enum(["daily"]).optional(),
 });
 
 export const studentCreateSchema = z.object({

@@ -16,10 +16,24 @@ export class BrandingController {
     return this.branding.publicBySlug(slug);
   }
 
+  @Get("schools/settings")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission(PERMISSIONS.SCHOOL_SETTINGS_READ)
+  getSettings(@CurrentUser() acl: RequestAcl) {
+    return this.branding.getSettings(acl);
+  }
+
+  @Patch("schools/settings")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission(PERMISSIONS.SCHOOL_SETTINGS_UPDATE)
+  updateSettings(@CurrentUser() acl: RequestAcl, @Body() body: unknown) {
+    return this.branding.updateSettings(acl, body);
+  }
+
   @Patch("schools/branding")
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @RequirePermission(PERMISSIONS.SCHOOL_BRANDING_UPDATE)
-  update(@CurrentUser() acl: RequestAcl, @Body() body: unknown) {
-    return this.branding.update(acl.schoolId, body);
+  updateBranding(@CurrentUser() acl: RequestAcl, @Body() body: unknown) {
+    return this.branding.updateBranding(acl, body);
   }
 }
