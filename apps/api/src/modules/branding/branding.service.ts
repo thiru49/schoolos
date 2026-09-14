@@ -55,7 +55,9 @@ export class BrandingService {
 
   async getSettings(acl: RequestAcl): Promise<BrandingPayload> {
     this.policy.assertReadSettings(acl);
-    const school = await this.prisma.school.findUnique({ where: { id: acl.schoolId } });
+    const school = await this.prisma.withSchool(acl.schoolId, async (tx) => {
+      return tx.school.findUnique({ where: { id: acl.schoolId } });
+    });
     if (!school) throw new NotFoundException("School not found");
     return this.toPayload(school);
   }

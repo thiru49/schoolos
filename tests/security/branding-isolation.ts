@@ -56,8 +56,19 @@ async function main() {
 
     const adminSettings = await authed(adminA.accessToken, "/schools/settings");
     if (!adminSettings.ok) throw new Error("admin settings read failed " + (await adminSettings.text()));
-    const settings = (await adminSettings.json()) as { schoolName: string; receiptPrefix: string };
+    const settings = (await adminSettings.json()) as {
+      tenantId: string;
+      slug: string;
+      schoolName: string;
+      receiptPrefix: string;
+    };
     if (settings.schoolName !== originalName) throw new Error("unexpected school name from settings");
+    if (settings.tenantId !== schoolA.id) {
+      throw new Error(`GET /schools/settings tenantId must match JWT school (${schoolA.id})`);
+    }
+    if (settings.slug !== "arulneri") {
+      throw new Error("GET /schools/settings must return the authenticated tenant slug");
+    }
 
     const readOnlySettings = await authed(readOnlyAdminA.accessToken, "/schools/settings");
     if (!readOnlySettings.ok) {
@@ -153,9 +164,19 @@ async function main() {
     }
 
     const adminBSettings = await authed(adminB.accessToken, "/schools/settings");
-    const bSettings = (await adminBSettings.json()) as { schoolName: string };
+    const bSettings = (await adminBSettings.json()) as {
+      tenantId: string;
+      slug: string;
+      schoolName: string;
+    };
     if (bSettings.schoolName === newName) {
       throw new Error("cross-tenant settings read leaked school A name");
+    }
+    if (bSettings.tenantId !== schoolB.id) {
+      throw new Error("school-b settings read must be scoped to school-b tenant");
+    }
+    if (bSettings.slug !== "school-b") {
+      throw new Error("school-b settings read must return school-b slug only");
     }
   } finally {
     await authed(adminA.accessToken, "/schools/branding", {
