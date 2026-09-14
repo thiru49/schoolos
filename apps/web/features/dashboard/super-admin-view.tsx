@@ -3,22 +3,15 @@
 import Link from "next/link";
 import {
   CalendarRange,
-  Layers,
-  BookOpen,
-  GraduationCap,
-  UserRound,
   Users,
   ShieldCheck,
   Settings,
   Banknote,
   FileBarChart,
-  CheckCircle2,
-  Circle,
   ArrowRight,
 } from "lucide-react";
 import { Card, CardTitle } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
-import { useAppBranding } from "../../lib/branding-context";
+import { OnboardingPanel } from "../onboarding/onboarding-panel";
 
 export interface SuperAdminData {
   academicYears: { id: string; name: string; isActive: boolean }[];
@@ -31,71 +24,12 @@ export interface SuperAdminData {
 }
 
 export function SuperAdminView({ data }: { data: SuperAdminData }) {
-  const { branding } = useAppBranding();
-
   const activeYear = data.academicYears.find((y) => y.isActive) ?? data.academicYears[0];
-
-  const checklist = [
-    {
-      label: "Academic Year Configured",
-      detail: activeYear ? `Active: ${activeYear.name}` : "No academic year created yet",
-      isComplete: data.academicYears.length > 0,
-      href: "/academic-years",
-      actionText: "Manage Years",
-    },
-    {
-      label: "Classes & Sections Defined",
-      detail:
-        data.classes.length > 0
-          ? `${data.classes.length} classes, ${data.sections.length} sections`
-          : "Define standard grade levels and sections",
-      isComplete: data.classes.length > 0 && data.sections.length > 0,
-      href: "/classes",
-      actionText: "Manage Classes",
-    },
-    {
-      label: "Subjects Master Setup",
-      detail:
-        data.subjects.length > 0
-          ? `${data.subjects.length} subjects configured`
-          : "Add core curricula and electives",
-      isComplete: data.subjects.length > 0,
-      href: "/subjects",
-      actionText: "Configure Subjects",
-    },
-    {
-      label: "Teaching Faculty Onboarded",
-      detail:
-        data.teacherCount > 0
-          ? `${data.teacherCount} teachers active`
-          : "Add teachers and assign them to sections",
-      isComplete: data.teacherCount > 0,
-      href: "/teachers",
-      actionText: "Onboard Teachers",
-    },
-    {
-      label: "Student Roster Enrolled",
-      detail:
-        data.studentCount > 0
-          ? `${data.studentCount} students registered`
-          : "Enroll students into classes and sections",
-      isComplete: data.studentCount > 0,
-      href: "/students",
-      actionText: "Enroll Students",
-    },
-    {
-      label: "School Branding & Receipt Prefix",
-      detail: branding.schoolName ? `${branding.schoolName} (${branding.location || "Tamil Nadu"})` : "Set school identity",
-      isComplete: Boolean(branding.schoolName),
-      href: "/settings",
-      actionText: "Review Settings",
-    },
-  ];
-
-  const completedCount = checklist.filter((item) => item.isComplete).length;
 
   return (
     <div className="space-y-6">
+      <OnboardingPanel />
+
       {/* Overview Stat Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col justify-between">
@@ -146,52 +80,6 @@ export function SuperAdminView({ data }: { data: SuperAdminData }) {
           </p>
         </Card>
       </div>
-
-      {/* School Setup Readiness Checklist */}
-      <Card className="border-slate-200">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-display text-base font-semibold text-slate-900">
-                School Setup Readiness
-              </h3>
-              <Badge variant={completedCount === checklist.length ? "present" : "late"}>
-                {completedCount} / {checklist.length} Ready
-              </Badge>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Complete initial master configurations so teachers and staff can operate smoothly.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 divide-y divide-slate-100">
-          {checklist.map((step) => (
-            <div
-              key={step.label}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-2"
-            >
-              <div className="flex items-start gap-3">
-                {step.isComplete ? (
-                  <CheckCircle2 size={18} className="mt-0.5 text-success shrink-0" />
-                ) : (
-                  <Circle size={18} className="mt-0.5 text-slate-300 shrink-0" />
-                )}
-                <div>
-                  <p className="text-sm font-medium text-slate-900">{step.label}</p>
-                  <p className="text-xs text-slate-500">{step.detail}</p>
-                </div>
-              </div>
-              <Link
-                href={step.href}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline sm:self-center"
-              >
-                {step.actionText} <ArrowRight size={12} />
-              </Link>
-            </div>
-          ))}
-        </div>
-      </Card>
 
       {/* Quick Administrative Management Hub */}
       <div>

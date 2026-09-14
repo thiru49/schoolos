@@ -22,6 +22,7 @@ import { Card, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { useAppBranding } from "../../lib/branding-context";
 import { canAccessFees } from "./dashboard-policy";
+import { OnboardingPanel } from "../onboarding/onboarding-panel";
 
 export interface SchoolAdminData {
   studentCount: number | null;
@@ -37,6 +38,8 @@ export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
 
   return (
     <div className="space-y-6">
+      <OnboardingPanel />
+
       {/* Degraded State Banner when partial failures occur */}
       {data.degradedErrors && data.degradedErrors.length > 0 ? (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
