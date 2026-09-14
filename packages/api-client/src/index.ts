@@ -4,7 +4,9 @@ import type {
   LinkedChild,
   LoginRequest,
   PutAttendanceRequest,
+  RoleSummary,
   TokenPair,
+  UserRoleDetail,
 } from "@schoolos/types";
 import type {
   NoticeTargetRole,
@@ -13,6 +15,8 @@ import type {
   StudentListReportQuery,
   TeacherWorkloadReportQuery,
   ProgressReportQuery,
+  UserScopeItemInput,
+  UserListQueryInput,
 } from "@schoolos/validation";
 
 export type {
@@ -22,6 +26,8 @@ export type {
   StudentListReportQuery,
   TeacherWorkloadReportQuery,
   ProgressReportQuery,
+  UserScopeItemInput,
+  UserListQueryInput,
 };
 
 export class ApiError extends Error {
@@ -812,6 +818,27 @@ export function createApiClient(options: {
         }>(`/reports/attendance?sectionId=${sectionId}&from=${from}&to=${to}`),
       exportAttendanceUrl: (sectionId: string, from: string, to: string) =>
         `/reports/attendance/export?sectionId=${sectionId}&from=${from}&to=${to}`,
+    },
+    roles: {
+      list: () => request<RoleSummary[]>("/roles"),
+      listUsers: (query?: UserListQueryInput) => {
+        const q = new URLSearchParams();
+        if (query?.search) q.set("search", query.search);
+        if (query?.role) q.set("role", query.role);
+        const qs = q.toString();
+        return request<UserRoleDetail[]>(`/roles/users${qs ? `?${qs}` : ""}`);
+      },
+      getUser: (id: string) => request<UserRoleDetail>(`/roles/users/${encodeURIComponent(id)}`),
+      assignRoles: (userId: string, roleCodes: string[]) =>
+        request<UserRoleDetail>(`/roles/users/${encodeURIComponent(userId)}/roles`, {
+          method: "PUT",
+          body: JSON.stringify({ roleCodes }),
+        }),
+      updateScopes: (userId: string, scopes: UserScopeItemInput[]) =>
+        request<UserRoleDetail>(`/roles/users/${encodeURIComponent(userId)}/scopes`, {
+          method: "PUT",
+          body: JSON.stringify({ scopes }),
+        }),
     },
     setTokens,
   };

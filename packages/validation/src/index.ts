@@ -1,4 +1,4 @@
-import { ATTENDANCE_STATUSES } from "@schoolos/permissions";
+import { ATTENDANCE_STATUSES, SCOPE_TYPES } from "@schoolos/permissions";
 import { z } from "zod";
 
 export const loginSchema = z.object({
@@ -341,4 +341,28 @@ export type StudentListReportQuery = z.infer<typeof studentListReportQuerySchema
 export type TeacherWorkloadReportQuery = z.infer<typeof teacherWorkloadReportQuerySchema>;
 export type ProgressReportQuery = z.infer<typeof progressReportQuerySchema>;
 
+export const assignRolesSchema = z.object({
+  roleCodes: z.array(z.string().min(1)).min(1, "At least one role code is required"),
+});
 
+export const userScopeItemSchema = z.object({
+  scopeType: z.enum(SCOPE_TYPES),
+  classId: z.string().uuid().nullable().optional(),
+  sectionId: z.string().uuid().nullable().optional(),
+  subjectId: z.string().uuid().nullable().optional(),
+  studentId: z.string().uuid().nullable().optional(),
+});
+
+export const updateScopesSchema = z.object({
+  scopes: z.array(userScopeItemSchema),
+});
+
+export const userListQuerySchema = z.object({
+  search: z.string().optional(),
+  role: z.string().optional(),
+});
+
+export type AssignRolesInput = z.infer<typeof assignRolesSchema>;
+export type UserScopeItemInput = z.infer<typeof userScopeItemSchema>;
+export type UpdateScopesInput = z.infer<typeof updateScopesSchema>;
+export type UserListQueryInput = z.infer<typeof userListQuerySchema>;
