@@ -9,6 +9,7 @@ import { PermissionDenied } from "../../components/states/permission-denied";
 import {
   getAvailableDashboardRoles,
   resolveDefaultDashboardRole,
+  evaluateSchoolAdminData,
   type DashboardRole,
 } from "./dashboard-policy";
 import { RoleSwitcher } from "./role-switcher";
@@ -96,14 +97,25 @@ export function DashboardView() {
           api().academics.sections(),
         ]);
 
-        const studentCount = studentsRes.status === "fulfilled" ? studentsRes.value.length : 0;
-        const teacherCount = teachersRes.status === "fulfilled" ? teachersRes.value.length : 0;
-        const sections = sectionsRes.status === "fulfilled" ? sectionsRes.value : [];
+        const evaluated = evaluateSchoolAdminData({
+          students: studentsRes,
+          teachers: teachersRes,
+          sections: sectionsRes,
+        });
+
+        if (evaluated.state === "failure") {
+          const firstErr = (studentsRes as PromiseRejectedResult).reason;
+          throw firstErr instanceof Error
+            ? firstErr
+            : new Error("Failed to load school operations data");
+        }
 
         setSchoolAdminData({
-          studentCount,
-          teacherCount,
-          sections,
+          studentCount: evaluated.studentCount,
+          teacherCount: evaluated.teacherCount,
+          sections: evaluated.sections,
+          degradedErrors: evaluated.failedFields.length > 0 ? evaluated.failedFields : undefined,
+          onRetry: () => void fetchDashboardData(role),
         });
       } else if (role === "accounts_admin") {
         const [headsRes, paymentsRes] = await Promise.allSettled([

@@ -73,3 +73,72 @@ export function canManageAcademicYears(acl: { permissions: PermissionCode[] }): 
 export function canManageClasses(acl: { permissions: PermissionCode[] }): boolean {
   return acl.permissions.includes(PERMISSIONS.CLASSES_MANAGE);
 }
+
+export interface EvaluatedSchoolAdminData {
+  state: "success" | "partial" | "failure";
+  studentCount: number | null;
+  teacherCount: number | null;
+  sections: { id: string; label: string }[] | null;
+  failedFields: string[];
+}
+
+/**
+ * Distinguishes success, partial failure, and complete failure for school admin metrics.
+ * Ensures rejected requests are NEVER converted to valid 0/empty numbers.
+ */
+export function evaluateSchoolAdminData(results: {
+  students: PromiseSettledResult<unknown[]>;
+  teachers: PromiseSettledResult<unknown[]>;
+  sections: PromiseSettledResult<{ id: string; label: string }[]>;
+}): EvaluatedSchoolAdminData {
+  const failedFields: string[] = [];
+
+  let studentCount: number | null = null;
+  if (results.students.status === "fulfilled") {
+    studentCount = results.students.value.length;
+  } else {
+    failedFields.push("students");
+  }
+
+  let teacherCount: number | null = null;
+  if (results.teachers.status === "fulfilled") {
+    teacherCount = results.teachers.value.length;
+  } else {
+    failedFields.push("teachers");
+  }
+
+  let sections: { id: string; label: string }[] | null = null;
+  if (results.sections.status === "fulfilled") {
+    sections = results.sections.value;
+  } else {
+    failedFields.push("sections");
+  }
+
+  if (failedFields.length === 3) {
+    return {
+      state: "failure",
+      studentCount: null,
+      teacherCount: null,
+      sections: null,
+      failedFields,
+    };
+  }
+
+  if (failedFields.length > 0) {
+    return {
+      state: "partial",
+      studentCount,
+      teacherCount,
+      sections,
+      failedFields,
+    };
+  }
+
+  return {
+    state: "success",
+    studentCount,
+    teacherCount,
+    sections,
+    failedFields: [],
+  };
+}

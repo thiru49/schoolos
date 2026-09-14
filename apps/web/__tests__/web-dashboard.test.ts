@@ -3,6 +3,7 @@ import { PERMISSIONS, ROLE_CODES, type RoleCode, type PermissionCode } from "@sc
 import {
   resolveDefaultDashboardRole,
   getAvailableDashboardRoles,
+  evaluateSchoolAdminData,
   canAccessFees,
   canAccessSettings,
   canManageRoles,
@@ -321,6 +322,88 @@ const accountsAttendanceCard = getAttendanceCardProps(accountsAdminAcl);
 assert.equal(accountsAttendanceCard.canAccess, false, "Accounts admin without ATTENDANCE_READ cannot access attendance roster");
 
 console.log("✓ Safe actionable attendance (no sections[0] dependency) tests passed");
+
+// ============================================================================
+// 7. Failure State & Degraded Resilience (No Silent 0/Empty Masking)
+// ============================================================================
+
+// 7a. Complete success case
+const successEval = evaluateSchoolAdminData({
+  students: { status: "fulfilled", value: [{ id: "s1" }, { id: "s2" }] },
+  teachers: { status: "fulfilled", value: [{ id: "t1" }] },
+  sections: { status: "fulfilled", value: [{ id: "sec1", label: "Grade 1 - A" }] },
+});
+assert.equal(successEval.state, "success", "All fulfilled yields success state");
+assert.equal(successEval.studentCount, 2, "studentCount correctly computed as 2");
+assert.equal(successEval.teacherCount, 1, "teacherCount correctly computed as 1");
+assert.equal(successEval.sections?.length, 1, "sections correctly populated");
+assert.deepEqual(successEval.failedFields, [], "failedFields is empty on success");
+
+// 7b. Partial failure: students API request rejected
+const partialStudentsFailed = evaluateSchoolAdminData({
+  students: { status: "rejected", reason: new Error("Network timeout") },
+  teachers: { status: "fulfilled", value: [{ id: "t1" }, { id: "t2" }] },
+  sections: { status: "fulfilled", value: [{ id: "sec1", label: "Grade 1 - A" }] },
+});
+assert.equal(partialStudentsFailed.state, "partial", "Rejected student request yields partial state");
+assert.equal(partialStudentsFailed.studentCount, null, "studentCount MUST be null, not 0, on failure");
+assert.notEqual(partialStudentsFailed.studentCount, 0, "studentCount MUST NOT mask failure as 0");
+assert.equal(partialStudentsFailed.teacherCount, 2, "Successful teacher count is preserved");
+assert.deepEqual(partialStudentsFailed.failedFields, ["students"], "failedFields correctly flags students");
+
+// 7c. Partial failure: teachers API request rejected
+const partialTeachersFailed = evaluateSchoolAdminData({
+  students: { status: "fulfilled", value: [{ id: "s1" }] },
+  teachers: { status: "rejected", reason: new Error("500 Internal Error") },
+  sections: { status: "fulfilled", value: [{ id: "sec1", label: "Grade 1 - A" }] },
+});
+assert.equal(partialTeachersFailed.state, "partial", "Rejected teacher request yields partial state");
+assert.equal(partialTeachersFailed.teacherCount, null, "teacherCount MUST be null, not 0, on failure");
+assert.deepEqual(partialTeachersFailed.failedFields, ["teachers"], "failedFields correctly flags teachers");
+
+// 7d. Partial failure: sections API request rejected
+const partialSectionsFailed = evaluateSchoolAdminData({
+  students: { status: "fulfilled", value: [{ id: "s1" }] },
+  teachers: { status: "fulfilled", value: [{ id: "t1" }] },
+  sections: { status: "rejected", reason: new Error("Connection reset") },
+});
+assert.equal(partialSectionsFailed.state, "partial", "Rejected sections request yields partial state");
+assert.equal(partialSectionsFailed.sections, null, "sections MUST be null, not [], on failure");
+assert.deepEqual(partialSectionsFailed.failedFields, ["sections"], "failedFields correctly flags sections");
+
+// 7e. Complete failure: all 3 requests rejected
+const completeFailure = evaluateSchoolAdminData({
+  students: { status: "rejected", reason: new Error("Network down") },
+  teachers: { status: "rejected", reason: new Error("Network down") },
+  sections: { status: "rejected", reason: new Error("Network down") },
+});
+assert.equal(completeFailure.state, "failure", "All rejected requests yield failure state");
+assert.equal(completeFailure.studentCount, null, "All metrics are null on failure");
+assert.equal(completeFailure.teacherCount, null, "All metrics are null on failure");
+assert.equal(completeFailure.sections, null, "All metrics are null on failure");
+assert.deepEqual(
+  completeFailure.failedFields,
+  ["students", "teachers", "sections"],
+  "failedFields contains all 3 fields on complete failure",
+);
+
+// 7f. Distinction between legitimate 0 and failed request
+const legitimateZeroStudents = evaluateSchoolAdminData({
+  students: { status: "fulfilled", value: [] }, // Real API returned empty array (0 students)
+  teachers: { status: "fulfilled", value: [{ id: "t1" }] },
+  sections: { status: "fulfilled", value: [] },
+});
+assert.equal(legitimateZeroStudents.state, "success", "Empty array response yields success state");
+assert.equal(legitimateZeroStudents.studentCount, 0, "Legitimate 0 students is preserved as 0");
+
+function formatDashboardMetric(val: number | null): string {
+  if (val === null) return "Failed to load";
+  return String(val);
+}
+assert.equal(formatDashboardMetric(legitimateZeroStudents.studentCount), "0", "Legitimate 0 is formatted as '0'");
+assert.equal(formatDashboardMetric(partialStudentsFailed.studentCount), "Failed to load", "Failed request is formatted as 'Failed to load', never '0'");
+
+console.log("✓ Failure state & degraded resilience (no silent 0/empty masking) tests passed");
 
 console.log("\n========================================================");
 console.log("ALL PRODUCT-UX-002 WEB DASHBOARD & NAVIGATION TESTS PASSED");

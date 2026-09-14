@@ -15,6 +15,8 @@ import {
   UserRound,
   ArrowRight,
   Layers,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardTitle } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -22,9 +24,11 @@ import { useAppBranding } from "../../lib/branding-context";
 import { canAccessFees } from "./dashboard-policy";
 
 export interface SchoolAdminData {
-  studentCount: number;
-  teacherCount: number;
-  sections: { id: string; label: string }[];
+  studentCount: number | null;
+  teacherCount: number | null;
+  sections: { id: string; label: string }[] | null;
+  degradedErrors?: string[];
+  onRetry?: () => void;
 }
 
 export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
@@ -33,14 +37,39 @@ export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
 
   return (
     <div className="space-y-6">
+      {/* Degraded State Banner when partial failures occur */}
+      {data.degradedErrors && data.degradedErrors.length > 0 ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="text-warning shrink-0" />
+            <span>
+              Some operational metrics could not be loaded ({data.degradedErrors.join(", ")}). Data shown below may be incomplete.
+            </span>
+          </div>
+          {data.onRetry ? (
+            <button
+              type="button"
+              onClick={data.onRetry}
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline shrink-0"
+            >
+              <RefreshCw size={12} /> Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Daily Snapshot Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col justify-between">
           <div>
             <CardTitle>Enrolled Students</CardTitle>
-            <p className="mt-2 font-display text-2xl font-semibold text-primary">
-              {data.studentCount}
-            </p>
+            {data.studentCount !== null ? (
+              <p className="mt-2 font-display text-2xl font-semibold text-primary">
+                {data.studentCount}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-danger font-medium">Failed to load</p>
+            )}
           </div>
           <Link
             href="/students"
@@ -53,9 +82,13 @@ export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
         <Card className="flex flex-col justify-between">
           <div>
             <CardTitle>Teaching Faculty</CardTitle>
-            <p className="mt-2 font-display text-2xl font-semibold text-slate-900">
-              {data.teacherCount}
-            </p>
+            {data.teacherCount !== null ? (
+              <p className="mt-2 font-display text-2xl font-semibold text-slate-900">
+                {data.teacherCount}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-danger font-medium">Failed to load</p>
+            )}
           </div>
           <Link
             href="/teachers"
@@ -68,9 +101,13 @@ export function SchoolAdminView({ data }: { data: SchoolAdminData }) {
         <Card className="flex flex-col justify-between">
           <div>
             <CardTitle>Active Sections</CardTitle>
-            <p className="mt-2 font-display text-2xl font-semibold text-slate-900">
-              {data.sections.length}
-            </p>
+            {data.sections !== null ? (
+              <p className="mt-2 font-display text-2xl font-semibold text-slate-900">
+                {data.sections.length}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-danger font-medium">Failed to load</p>
+            )}
           </div>
           <Link
             href="/classes"
