@@ -135,14 +135,23 @@ export function sortHolidaysChronologically(holidays: MobileHolidayItem[]): Mobi
 const CACHE_PREFIX = "schoolos_comms_";
 
 /**
- * Partition cache key by schoolId, userId, and active role
+ * Partition cache key by schoolId, userId, active role, and optional childId.
+ * Returns null (fails closed) if any required auth context (schoolId, userId, role) is missing.
  */
 export function buildCommunicationsCacheKey(
-  schoolId: string,
-  userId: string,
-  role: string,
-): string {
-  const raw = `${schoolId}_${userId}_${role}`;
+  schoolId?: string | null,
+  userId?: string | null,
+  role?: string | null,
+  childId?: string | null,
+): string | null {
+  if (!schoolId || !userId || !role) {
+    return null;
+  }
+  const parts = [schoolId, userId, role];
+  if (childId) {
+    parts.push(childId);
+  }
+  const raw = parts.join("_");
   const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, "_");
   return `${CACHE_PREFIX}${sanitized}`;
 }

@@ -20,6 +20,7 @@ import {
 import {
   getCachedCommunications,
   setCachedCommunications,
+  updateCachedNotificationReadState,
 } from "./communications-cache";
 import { NoticesFeed } from "./notices-feed";
 import { EventsFeed } from "./events-feed";
@@ -42,7 +43,7 @@ export function CommunicationsHub({
   showBack?: boolean;
   title?: string;
 }) {
-  const { branding, theme, acl } = useBranding();
+  const { branding, theme, acl, selectedChild } = useBranding();
   const router = useRouter();
 
   const [currentTab, setCurrentTab] = useState<CommunicationsTab>(initialTab);
@@ -54,16 +55,21 @@ export function CommunicationsHub({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   const [isDenied, setIsDenied] = useState(false);
   const [hasCachedData, setHasCachedData] = useState(false);
 
-  const schoolId = acl?.schoolId ?? branding?.tenantId ?? "default_school";
-  const userId = acl?.userId ?? "anonymous_user";
-  const role = acl?.roles[0] ?? "guest";
+  // Authenticated session context — strict, no invented fallbacks
+  const schoolId = acl?.schoolId;
+  const userId = acl?.userId;
+  const role = acl?.roles?.[0];
+  const isParent = acl?.roles?.includes("parent");
+  const childId = isParent ? selectedChild?.studentId : undefined;
 
   const loadData = useCallback(async () => {
     setError(null);
+    setActionError(null);
     setIsDenied(false);
 
     try {
@@ -92,13 +98,21 @@ export function CommunicationsHub({
       setIsOffline(false);
       setHasCachedData(false);
 
-      // Persist to partitioned offline cache
-      await setCachedCommunications(schoolId, userId, role, {
-        notices: noticesRes,
-        events: eventsRes,
-        holidays: holidaysRes,
-        notifications: notificationsRes,
-      });
+      // Persist to partitioned offline cache only when valid authenticated context exists
+      if (schoolId && userId && role) {
+        await setCachedCommunications(
+          schoolId,
+          userId,
+          role,
+          {
+            notices: noticesRes,
+            events: eventsRes,
+            holidays: holidaysRes,
+            notifications: notificationsRes,
+          },
+          childId,
+        );
+      }
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 403) {
         setIsDenied(true);
@@ -106,8 +120,12 @@ export function CommunicationsHub({
         return;
       }
 
-      // Check offline cache on network failure or unexpected error
-      const cached = await getCachedCommunications(schoolId, userId, role);
+      // Check offline cache on network failure only when valid authenticated context exists
+      const cached =
+        schoolId && userId && role
+          ? await getCachedCommunications(schoolId, userId, role, childId)
+          : null;
+
       if (cached) {
         setNotices(cached.notices);
         setEvents(cached.events);
@@ -126,7 +144,7 @@ export function CommunicationsHub({
       setLoading(false);
       setRefreshing(false);
     }
-  }, [schoolId, userId, role]);
+  }, [schoolId, userId, role, childId]);
 
   useEffect(() => {
     setLoading(true);
@@ -139,17 +157,32 @@ export function CommunicationsHub({
   }, [loadData]);
 
   const handleMarkRead = async (id: string) => {
+    setActionError(null);
     try {
       const client = await api();
       await client.notifications.markRead(id);
+      // Update UI only on successful backend call
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
       );
-    } catch {
-      // Optimistically marked read locally
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-      );
+      // Update the existing communications cache partition
+      if (schoolId && userId && role) {
+        await updateCachedNotificationReadState(
+          schoolId,
+          userId,
+          role,
+          id,
+          true,
+          childId,
+        );
+      }
+    } catch (err) {
+      // Keep notification unread on failure and surface visible error
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to mark alert as read. Please check your connection.";
+      setActionError(msg);
     }
   };
 
@@ -208,7 +241,10 @@ export function CommunicationsHub({
           return (
             <Pressable
               key={tab.key}
-              onPress={() => setCurrentTab(tab.key)}
+              onPress={() => {
+                setActionError(null);
+                setCurrentTab(tab.key);
+              }}
               className="flex-1 items-center justify-center rounded-lg py-2"
               style={{
                 backgroundColor: isSelected ? theme.colors.primary : "transparent",
@@ -248,6 +284,15 @@ export function CommunicationsHub({
           );
         })}
       </View>
+
+      {/* Action Error Banner */}
+      {actionError ? (
+        <View className="mb-3 rounded-xl bg-rose-50 p-3 border border-rose-200">
+          <AppText variant="caption" color={theme.colors.danger} style={{ fontWeight: "600" }}>
+            {actionError}
+          </AppText>
+        </View>
+      ) : null}
 
       {/* Offline Banner when showing cached data */}
       {isOffline && hasCachedData ? (

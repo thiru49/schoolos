@@ -8,13 +8,41 @@ import {
   sortHolidaysChronologically,
   buildCommunicationsCacheKey,
 } from "../features/communications/communications-logic";
+import {
+  getCachedCommunications,
+  setCachedCommunications,
+  updateCachedNotificationReadState,
+  clearCachedCommunications,
+  setCommunicationsStorageBackend,
+  type KeyValueStorage,
+} from "../features/communications/communications-cache";
 import type {
   MobileEventItem,
   MobileHolidayItem,
-  CachedCommunicationsData,
+  MobileNoticeItem,
+  MobileNotificationItem,
+  CommunicationsPayload,
 } from "../features/communications/communications-types";
 
 console.log("Starting COM-003 Mobile Communications Unit & Validation Tests...");
+
+// In-memory storage backend for testing real cache functions in Node/tsx
+function setupMockStorage(): Map<string, string> {
+  const store = new Map<string, string>();
+  const backend: KeyValueStorage = {
+    async getItemAsync(key: string) {
+      return store.get(key) ?? null;
+    },
+    async setItemAsync(key: string, value: string) {
+      store.set(key, value);
+    },
+    async deleteItemAsync(key: string) {
+      store.delete(key);
+    },
+  };
+  setCommunicationsStorageBackend(backend);
+  return store;
+}
 
 // 1. Audience presentation tests
 function testAudiencePresentation() {
@@ -128,7 +156,7 @@ function testHolidayOrdering() {
   console.log("✓ Holiday chronological ordering and calendar day calculation tests passed");
 }
 
-// 4. Cache-key partitioning and tenant/account/role isolation tests
+// 4. Cache-key partitioning across schools, users, and roles
 function testCacheKeyPartitioning() {
   const keyTenantA_User1_Parent = buildCommunicationsCacheKey(
     "school-arulneri",
@@ -151,6 +179,11 @@ function testCacheKeyPartitioning() {
     "teacher",
   );
 
+  assert.ok(keyTenantA_User1_Parent);
+  assert.ok(keyTenantB_User1_Parent);
+  assert.ok(keyTenantA_User2_Student);
+  assert.ok(keyTenantA_User1_Teacher);
+
   assert.notEqual(
     keyTenantA_User1_Parent,
     keyTenantB_User1_Parent,
@@ -170,73 +203,219 @@ function testCacheKeyPartitioning() {
   // Key prefix guarantees namespacing
   assert.ok(keyTenantA_User1_Parent.startsWith("schoolos_comms_"));
 
-  // Structural validator mock test
-  const validPayload: CachedCommunicationsData = {
-    schoolId: "school-arulneri",
-    userId: "user-1",
-    role: "parent",
+  console.log("✓ Cache-key partitioning and multi-tenant separation tests passed");
+}
+
+// 5. Child cache partitioning tests
+function testChildCachePartitioning() {
+  const childA = "child-student-A";
+  const childB = "child-student-B";
+
+  const keyChildA = buildCommunicationsCacheKey("school-1", "user-parent-1", "parent", childA);
+  const keyChildB = buildCommunicationsCacheKey("school-1", "user-parent-1", "parent", childB);
+  const keyNoChild = buildCommunicationsCacheKey("school-1", "user-parent-1", "parent");
+
+  assert.ok(keyChildA);
+  assert.ok(keyChildB);
+  assert.ok(keyNoChild);
+
+  assert.notEqual(keyChildA, keyChildB, "Different active children must produce distinct cache partitions");
+  assert.notEqual(keyChildA, keyNoChild, "Child-scoped key must not collide with un-scoped key");
+
+  const keyChildA_Repeat = buildCommunicationsCacheKey("school-1", "user-parent-1", "parent", childA);
+  assert.equal(keyChildA, keyChildA_Repeat, "Identical child session must reproduce identical key");
+
+  console.log("✓ Child cache partitioning tests passed");
+}
+
+// 6. Missing auth context fails closed
+async function testMissingAuthContextFailsClosed() {
+  const store = setupMockStorage();
+
+  // Missing schoolId
+  assert.equal(buildCommunicationsCacheKey("", "u1", "parent"), null);
+  assert.equal(buildCommunicationsCacheKey(null, "u1", "parent"), null);
+  assert.equal(buildCommunicationsCacheKey(undefined, "u1", "parent"), null);
+
+  // Missing userId
+  assert.equal(buildCommunicationsCacheKey("s1", "", "parent"), null);
+  assert.equal(buildCommunicationsCacheKey("s1", null, "parent"), null);
+  assert.equal(buildCommunicationsCacheKey("s1", undefined, "parent"), null);
+
+  // Missing role
+  assert.equal(buildCommunicationsCacheKey("s1", "u1", ""), null);
+  assert.equal(buildCommunicationsCacheKey("s1", "u1", null), null);
+  assert.equal(buildCommunicationsCacheKey("s1", "u1", undefined), null);
+
+  // Reading cache with missing auth context returns null
+  assert.equal(await getCachedCommunications("", "u1", "parent"), null);
+  assert.equal(await getCachedCommunications("s1", "", "parent"), null);
+  assert.equal(await getCachedCommunications("s1", "u1", ""), null);
+
+  // Writing cache with missing auth context is a no-op
+  const sampleData: CommunicationsPayload = {
     notices: [],
     events: [],
     holidays: [],
     notifications: [],
-    cachedAt: new Date().toISOString(),
   };
+  await setCachedCommunications("", "u1", "parent", sampleData);
+  await setCachedCommunications("s1", "", "parent", sampleData);
+  await setCachedCommunications("s1", "u1", "", sampleData);
+  assert.equal(store.size, 0, "No entries must be created in storage without complete auth context");
 
-  function validateCacheData(
-    data: any,
-    expectedSchoolId: string,
-    expectedUserId: string,
-    expectedRole: string,
-  ): boolean {
-    if (
-      !data ||
-      typeof data !== "object" ||
-      data.schoolId !== expectedSchoolId ||
-      data.userId !== expectedUserId ||
-      data.role !== expectedRole ||
-      !Array.isArray(data.notices) ||
-      !Array.isArray(data.events) ||
-      !Array.isArray(data.holidays) ||
-      !Array.isArray(data.notifications)
-    ) {
-      return false;
-    }
-    return true;
-  }
+  // Valid write for child A
+  await setCachedCommunications("school-1", "user-1", "parent", sampleData, "child-A");
+  assert.equal(store.size, 1);
 
-  assert.equal(
-    validateCacheData(validPayload, "school-arulneri", "user-1", "parent"),
-    true,
-    "Valid matching session data passes validation",
-  );
-  assert.equal(
-    validateCacheData(validPayload, "school-b", "user-1", "parent"),
-    false,
-    "Cross-tenant cache data is strictly rejected",
-  );
-  assert.equal(
-    validateCacheData(validPayload, "school-arulneri", "user-2", "parent"),
-    false,
-    "Cross-user cache data is strictly rejected",
-  );
-  assert.equal(
-    validateCacheData(validPayload, "school-arulneri", "user-1", "student"),
-    false,
-    "Cross-role cache data is strictly rejected",
-  );
+  // Reading back for child A succeeds
+  const readChildA = await getCachedCommunications("school-1", "user-1", "parent", "child-A");
+  assert.ok(readChildA);
+  assert.equal(readChildA.childId, "child-A");
 
-  console.log("✓ Cache-key partitioning and multi-tenant separation tests passed");
+  // Reading with child B on child A's partition fails closed
+  const readChildB = await getCachedCommunications("school-1", "user-1", "parent", "child-B");
+  assert.equal(readChildB, null, "Child B must never read Child A cache partition");
+
+  // Cross-tenant attempt fails closed
+  const readTenantB = await getCachedCommunications("school-other", "user-1", "parent", "child-A");
+  assert.equal(readTenantB, null, "Cross-tenant read must fail closed");
+
+  // Cross-user attempt fails closed
+  const readUser2 = await getCachedCommunications("school-1", "user-2", "parent", "child-A");
+  assert.equal(readUser2, null, "Cross-user read must fail closed");
+
+  console.log("✓ Missing auth context and cross-context isolation fail-closed tests passed");
 }
 
-function main() {
+// 7. Successful mark-read updates cache
+async function testSuccessfulMarkReadUpdatesCache() {
+  setupMockStorage();
+
+  const notice: MobileNoticeItem = {
+    id: "notice-1",
+    title: "Exam Schedule",
+    body: "Final exams start next Monday.",
+    targetRole: "all",
+    published: true,
+    publishedAt: "2026-09-10T00:00:00.000Z",
+    authorId: "admin-1",
+    authorName: "Principal",
+    createdAt: "2026-09-10T00:00:00.000Z",
+  };
+
+  const initialNotification: MobileNotificationItem = {
+    id: "notif-101",
+    kind: "absence",
+    title: "Absence Alert",
+    body: "Student was marked absent today.",
+    read: false,
+    createdAt: "2026-09-14T08:00:00.000Z",
+  };
+
+  const initialData: CommunicationsPayload = {
+    notices: [notice],
+    events: [],
+    holidays: [],
+    notifications: [initialNotification],
+  };
+
+  // Seed cache for parent with child-1
+  await setCachedCommunications("school-1", "user-parent-1", "parent", initialData, "child-1");
+
+  // Verify initially unread
+  const before = await getCachedCommunications("school-1", "user-parent-1", "parent", "child-1");
+  assert.ok(before);
+  assert.equal(before.notifications[0].read, false);
+
+  // Update notification to read via updateCachedNotificationReadState
+  const updateSuccess = await updateCachedNotificationReadState(
+    "school-1",
+    "user-parent-1",
+    "parent",
+    "notif-101",
+    true,
+    "child-1",
+  );
+  assert.equal(updateSuccess, true, "Cache update must succeed");
+
+  // Verify updated cache state: notification is read, but notice is untouched
+  const after = await getCachedCommunications("school-1", "user-parent-1", "parent", "child-1");
+  assert.ok(after);
+  assert.equal(after.notifications.length, 1);
+  assert.equal(after.notifications[0].id, "notif-101");
+  assert.equal(after.notifications[0].read, true, "Notification read state must be persisted as true");
+  assert.equal(after.notices.length, 1, "Notices must remain preserved in cache");
+  assert.equal(after.notices[0].title, "Exam Schedule");
+
+  console.log("✓ Successful mark-read updates cache partition without deleting content tests passed");
+}
+
+// 8. Failed mark-read stays unread and captures user-visible error
+async function testFailedMarkReadStaysUnread() {
+  setupMockStorage();
+
+  const initialNotifications: MobileNotificationItem[] = [
+    {
+      id: "notif-201",
+      title: "Fee Reminder",
+      body: "Term 2 fee is due.",
+      read: false,
+      createdAt: "2026-09-14T08:00:00.000Z",
+    },
+  ];
+
+  let localState = [...initialNotifications];
+  let actionError: string | null = null;
+
+  // Mock API client that fails with network error
+  const mockFailingApi = {
+    notifications: {
+      async markRead(_id: string) {
+        throw new Error("Network request failed");
+      },
+    },
+  };
+
+  // Simulate handleMarkRead implementation from CommunicationsHub
+  async function simulateHandleMarkRead(id: string) {
+    actionError = null;
+    try {
+      await mockFailingApi.notifications.markRead(id);
+      // Only runs on success
+      localState = localState.map((n) => (n.id === id ? { ...n, read: true } : n));
+      await updateCachedNotificationReadState("school-1", "user-1", "parent", id, true, "child-1");
+    } catch (err) {
+      // Failure branch: keep notification unread, surface error
+      actionError = err instanceof Error ? err.message : "Failed to mark alert as read";
+    }
+  }
+
+  // Execute markRead which throws
+  await simulateHandleMarkRead("notif-201");
+
+  // Assert local state is still unread
+  assert.equal(localState[0].read, false, "Notification must stay unread on API failure");
+
+  // Assert error message is populated for user display
+  assert.equal(actionError, "Network request failed", "User-visible error must be captured");
+
+  console.log("✓ Failed mark-read keeps notification unread and surfaces error tests passed");
+}
+
+async function main() {
   testAudiencePresentation();
   testEventPartitioning();
   testHolidayOrdering();
   testCacheKeyPartitioning();
+  testChildCachePartitioning();
+  await testMissingAuthContextFailsClosed();
+  await testSuccessfulMarkReadUpdatesCache();
+  await testFailedMarkReadStaysUnread();
 
   console.log("\n========================================================");
-  console.log("ALL COM-003 MOBILE COMMUNICATIONS TESTS PASSED (4/4)");
+  console.log("ALL COM-003 MOBILE COMMUNICATIONS TESTS PASSED (8/8)");
   console.log("========================================================\n");
 }
 
-main();
+void main();

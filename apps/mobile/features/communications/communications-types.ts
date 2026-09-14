@@ -42,13 +42,17 @@ export type MobileNotificationItem = {
 
 export type CommunicationsTab = "notices" | "events" | "holidays" | "alerts";
 
-export type CachedCommunicationsData = {
-  schoolId: string;
-  userId: string;
-  role: string;
+export type CommunicationsPayload = {
   notices: MobileNoticeItem[];
   events: MobileEventItem[];
   holidays: MobileHolidayItem[];
   notifications: MobileNotificationItem[];
+};
+
+export type CachedCommunicationsData = CommunicationsPayload & {
+  schoolId: string;
+  userId: string;
+  role: string;
+  childId?: string;
   cachedAt: string;
 };
