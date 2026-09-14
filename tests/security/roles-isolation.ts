@@ -10,6 +10,53 @@ const PASSWORD = process.env.SEED_PASSWORD ?? "Password123!";
 
 const prisma = new PrismaClient();
 
+type FixtureSnapshot = {
+  userId: string;
+  roleCodes: string[];
+  scopes: {
+    scopeType: string;
+    classId: string | null;
+    sectionId: string | null;
+    subjectId: string | null;
+    studentId: string | null;
+  }[];
+};
+
+let fixtureSnapshot: FixtureSnapshot | null = null;
+let restoreAdminToken: string | null = null;
+
+async function restoreSeedFixture() {
+  if (!fixtureSnapshot || !restoreAdminToken) return;
+
+  const { userId, roleCodes, scopes } = fixtureSnapshot;
+  const rolesRes = await request(`/roles/users/${userId}/roles`, restoreAdminToken, {
+    method: "PUT",
+    body: JSON.stringify({ roleCodes }),
+  });
+  if (!rolesRes.ok) {
+    throw new Error(`fixture restore roles failed: ${rolesRes.status} ${await rolesRes.text()}`);
+  }
+
+  const scopesRes = await request(`/roles/users/${userId}/scopes`, restoreAdminToken, {
+    method: "PUT",
+    body: JSON.stringify({
+      scopes: scopes.map((s) => {
+        const item: Record<string, string> = { scopeType: s.scopeType };
+        if (s.classId) item.classId = s.classId;
+        if (s.sectionId) item.sectionId = s.sectionId;
+        if (s.subjectId) item.subjectId = s.subjectId;
+        if (s.studentId) item.studentId = s.studentId;
+        return item;
+      }),
+    }),
+  });
+  if (!scopesRes.ok) {
+    throw new Error(`fixture restore scopes failed: ${scopesRes.status} ${await scopesRes.text()}`);
+  }
+
+  console.log("✓ TCH-8A seed fixture restored");
+}
+
 async function login(slug: string, identifier: string, roleHint?: string) {
   const res = await fetch(`${API}/auth/login`, {
     method: "POST",
@@ -53,10 +100,25 @@ async function main() {
   // Get sample users from School A and School B
   const sampleUserA = await prisma.user.findFirstOrThrow({
     where: { schoolId: schoolA.id, identifier: "TCH-8A" },
+    include: { userRoles: { include: { role: true } }, userScopes: true },
   });
   const sampleUserB = await prisma.user.findFirstOrThrow({
     where: { schoolId: schoolB.id, identifier: "TCH-B" },
   });
+
+  // Snapshot seeded fixture so scope/role mutations in this file can be restored in finally.
+  fixtureSnapshot = {
+    userId: sampleUserA.id,
+    roleCodes: sampleUserA.userRoles.map((ur) => ur.role.code),
+    scopes: sampleUserA.userScopes.map((s) => ({
+      scopeType: s.scopeType,
+      classId: s.classId,
+      sectionId: s.sectionId,
+      subjectId: s.subjectId,
+      studentId: s.studentId,
+    })),
+  };
+  restoreAdminToken = adminA.accessToken;
 
   // Get sample class & section from School A and School B
   const classA = await prisma.class.findFirstOrThrow({ where: { schoolId: schoolA.id } });
@@ -418,5 +480,10 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    try {
+      await restoreSeedFixture();
+    } catch (err) {
+      console.error("WARN: failed to restore TCH-8A seed fixture:", err);
+    }
     await prisma.$disconnect();
   });
