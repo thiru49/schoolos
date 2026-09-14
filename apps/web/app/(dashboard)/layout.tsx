@@ -8,7 +8,7 @@ import type { AclPayload, BrandingPayload } from "@schoolos/types";
 import { api } from "../../lib/api";
 import { BrandingContextProvider } from "../../lib/branding-context";
 import { clearSession, getAccessToken, getSlug } from "../../lib/session";
-import { AppSidebar } from "../../components/shell/app-sidebar";
+import { DashboardShell } from "../../components/shell/dashboard-shell";
 import { PageErrorBoundary } from "../../components/states/page-error-boundary";
 import { ErrorState } from "../../components/states/error-state";
 import { Skeleton } from "../../components/ui/skeleton";
@@ -61,8 +61,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!acl || !branding) {
     return (
       <div className="flex min-h-screen">
-        <Skeleton className="h-screen w-60 rounded-none" />
-        <div className="flex-1 p-8">
+        <Skeleton className="hidden h-screen w-60 rounded-none md:block" />
+        <div className="flex-1 p-4 md:p-8">
           <Skeleton className="h-10 w-48" />
         </div>
       </div>
@@ -71,12 +71,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <BrandingContextProvider branding={branding} acl={acl}>
-      <div className="flex min-h-screen bg-canvas">
-        <AppSidebar />
-        <main className="flex-1 p-8">
-          {React.createElement(PageErrorBoundary, null, children)}
-        </main>
-      </div>
+      <DashboardShell>
+        {React.createElement(PageErrorBoundary, null, children)}
+      </DashboardShell>
     </BrandingContextProvider>
   );
 }
