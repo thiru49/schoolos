@@ -6,7 +6,7 @@ import { DashboardView } from "../../../features/dashboard/dashboard-view";
 export default function DashboardPage() {
   return (
     <div>
-      <AppHeader title="Dashboard" subtitle="Overview of school operations in this slice." />
+      <AppHeader title="Dashboard" subtitle="Operational overview and daily school administration." />
       <DashboardView />
     </div>
   );
