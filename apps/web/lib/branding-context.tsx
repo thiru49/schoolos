@@ -1,20 +1,22 @@
 // @ts-nocheck
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { AclPayload, BrandingPayload } from "@schoolos/types";
 import { createTheme, type ResolvedTheme } from "@schoolos/ui";
+import { applyBrandingToDocument } from "./apply-branding";
 
 type Ctx = {
   branding: BrandingPayload;
   acl: AclPayload;
   theme: ResolvedTheme;
+  applyBranding: (next: BrandingPayload) => void;
 };
 
 const BrandingContext = createContext<Ctx | null>(null);
 
 export function BrandingContextProvider({
-  branding,
+  branding: initialBranding,
   acl,
   children,
 }: {
@@ -22,12 +24,20 @@ export function BrandingContextProvider({
   acl: AclPayload;
   children: ReactNode;
 }) {
-  const theme = createTheme(branding);
-  return (
-    <BrandingContext.Provider value={{ branding, acl, theme }}>
-      {children}
-    </BrandingContext.Provider>
+  const [branding, setBranding] = useState(initialBranding);
+  const theme = useMemo(() => createTheme(branding), [branding]);
+
+  const applyBranding = useCallback((next: BrandingPayload) => {
+    setBranding(next);
+    applyBrandingToDocument(next);
+  }, []);
+
+  const value = useMemo(
+    () => ({ branding, acl, theme, applyBranding }),
+    [branding, acl, theme, applyBranding],
   );
+
+  return <BrandingContext.Provider value={value}>{children}</BrandingContext.Provider>;
 }
 
 export function useAppBranding() {

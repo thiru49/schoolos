@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createTheme } from "@schoolos/ui";
+import { applyBrandingToDocument } from "../../lib/apply-branding";
 import type { AclPayload, BrandingPayload } from "@schoolos/types";
 import { api } from "../../lib/api";
 import { BrandingContextProvider } from "../../lib/branding-context";
@@ -25,10 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .then(([a, b]) => {
         setAcl(a);
         setBranding(b);
-        const theme = createTheme(b);
-        for (const [k, v] of Object.entries(theme.cssVars)) {
-          document.documentElement.style.setProperty(k, v);
-        }
+        applyBrandingToDocument(b);
       })
       .catch(() => {
         clearSession();

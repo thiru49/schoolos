@@ -34,7 +34,7 @@ export class FilesController {
       file.mimetype,
       file.originalname.replace(/[^\w.-]/g, "_"),
     );
-    await this.branding.setLogoUrl(acl.schoolId, url);
+    await this.branding.setLogoUrl(acl, url);
     return { logoUrl: url };
   }
 }

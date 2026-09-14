@@ -74,6 +74,54 @@ export function createApiClient(options: {
     branding: {
       get: (slug: string) =>
         request<BrandingPayload>(`/public/tenants/${encodeURIComponent(slug)}/branding`, {}, false),
+      getSettings: () => request<BrandingPayload>("/schools/settings"),
+      update: (body: {
+        schoolName?: string;
+        tagline?: string;
+        location?: string;
+        theme?: Partial<BrandingPayload["theme"]>;
+        typography?: {
+          preset?: "arulneri" | "modern" | "classic" | "tamil-first";
+          families?: Partial<BrandingPayload["typography"]["families"]>;
+          scale?: { md?: number };
+        };
+      }) =>
+        request<BrandingPayload>("/schools/branding", {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+      updateSettings: (body: {
+        receiptPrefix?: string;
+        defaultLanguage?: "en" | "ta";
+        attendanceMode?: "daily";
+      }) =>
+        request<BrandingPayload>("/schools/settings", {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        }),
+      uploadLogo: async (file: File) => {
+        const headers = new Headers();
+        const { accessToken } = getTokens();
+        if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch(`${baseUrl}/schools/branding/logo`, {
+          method: "POST",
+          headers,
+          body: form,
+        });
+        if (!res.ok) {
+          let message = res.statusText;
+          try {
+            const body = (await res.json()) as { message?: string };
+            if (body.message) message = body.message;
+          } catch {
+            /* ignore */
+          }
+          throw new ApiError(res.status, message);
+        }
+        return (await res.json()) as { logoUrl: string };
+      },
     },
     auth: {
       login: (body: LoginRequest) =>
