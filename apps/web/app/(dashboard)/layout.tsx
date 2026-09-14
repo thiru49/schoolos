@@ -8,12 +8,8 @@ import type { AclPayload, BrandingPayload } from "@schoolos/types";
 import { api } from "../../lib/api";
 import { BrandingContextProvider } from "../../lib/branding-context";
 import { clearSession, getAccessToken, getSlug } from "../../lib/session";
-<<<<<<< HEAD
-import { AppSidebar } from "../../components/shell/app-sidebar";
-import { PageErrorBoundary } from "../../components/states/page-error-boundary";
-=======
 import { DashboardShell } from "../../components/shell/dashboard-shell";
->>>>>>> 88fbebe (WEB-UX-003: Add responsive off-canvas dashboard sidebar)
+import { PageErrorBoundary } from "../../components/states/page-error-boundary";
 import { ErrorState } from "../../components/states/error-state";
 import { Skeleton } from "../../components/ui/skeleton";
 
@@ -75,16 +71,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <BrandingContextProvider branding={branding} acl={acl}>
-<<<<<<< HEAD
-      <div className="flex min-h-screen bg-canvas">
-        <AppSidebar />
-        <main className="flex-1 p-8">
-          {React.createElement(PageErrorBoundary, null, children)}
-        </main>
-      </div>
-=======
-      <DashboardShell>{children}</DashboardShell>
->>>>>>> 88fbebe (WEB-UX-003: Add responsive off-canvas dashboard sidebar)
+      <DashboardShell>
+        {React.createElement(PageErrorBoundary, null, children)}
+      </DashboardShell>
     </BrandingContextProvider>
   );
 }
