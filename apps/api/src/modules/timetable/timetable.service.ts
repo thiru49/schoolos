@@ -2,12 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import type { Prisma } from "@prisma/client";
 import { PERMISSIONS } from "@schoolos/permissions";
 import {
-  subjectCreateSchema,
   timetablePeriodSchema,
   timetablePeriodUpdateSchema,
   timetablePublishSchema,
 } from "@schoolos/validation";
 import type { RequestAcl } from "../../common/types/request-acl";
+import { AcademicsService } from "../academics/academics.service";
 import { PrismaService } from "../../prisma/prisma.service";
 import { periodsOverlap } from "./timetable-overlap";
 import { TimetablePolicy } from "./timetable.policy";
@@ -17,20 +17,15 @@ export class TimetableService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly policy: TimetablePolicy,
+    private readonly academics: AcademicsService,
   ) {}
 
   listSubjects(acl: RequestAcl) {
-    return this.prisma.withSchool(acl.schoolId, (tx) =>
-      tx.subject.findMany({ where: { schoolId: acl.schoolId }, orderBy: { name: "asc" } }),
-    );
+    return this.academics.listSubjectsForTimetable(acl);
   }
 
   createSubject(acl: RequestAcl, body: unknown) {
-    this.policy.assertWrite(acl);
-    const input = subjectCreateSchema.parse(body);
-    return this.prisma.withSchool(acl.schoolId, (tx) =>
-      tx.subject.create({ data: { schoolId: acl.schoolId, name: input.name } }),
-    );
+    return this.academics.createSubject(acl, body);
   }
 
   list(acl: RequestAcl, sectionId?: string, weekday?: number, studentId?: string) {

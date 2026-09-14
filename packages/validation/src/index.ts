@@ -125,8 +125,42 @@ export const teacherUpdateSchema = z.object({
   fullName: z.string().min(1).optional(),
 });
 
+export const academicYearCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  isActive: z.boolean().optional(),
+});
+
+export const academicYearUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const classCreateSchema = z.object({
+  academicYearId: z.string().uuid(),
+  name: z.string().trim().min(1),
+});
+
+export const classUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  academicYearId: z.string().uuid().optional(),
+});
+
+export const sectionCreateSchema = z.object({
+  classId: z.string().uuid(),
+  name: z.string().trim().min(1),
+});
+
+export const sectionUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  classId: z.string().uuid().optional(),
+});
+
 export const subjectCreateSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1),
+});
+
+export const subjectUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
 });
 
 export const timetablePeriodSchema = z.object({

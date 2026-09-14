@@ -105,6 +105,89 @@ export function createApiClient(options: {
         request<{ id: string; name: string; classId: string; className: string; label: string }[]>(
           "/academics/sections",
         ),
+      years: {
+        list: () =>
+          request<{ id: string; name: string; isActive: boolean }[]>("/academics/years"),
+        create: (body: { name: string; isActive?: boolean }) =>
+          request<{ id: string; name: string; isActive: boolean }>("/academics/years", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        update: (id: string, body: { name?: string; isActive?: boolean }) =>
+          request<{ id: string; name: string; isActive: boolean }>(`/academics/years/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          }),
+        remove: (id: string) =>
+          request<{ deleted: boolean }>(`/academics/years/${id}`, { method: "DELETE" }),
+      },
+      classes: {
+        list: (academicYearId?: string) => {
+          const q = new URLSearchParams();
+          if (academicYearId) q.set("academicYearId", academicYearId);
+          const qs = q.toString();
+          return request<
+            {
+              id: string;
+              name: string;
+              academicYearId: string;
+              academicYearName?: string;
+              sections: { id: string; name: string; classId: string }[];
+            }[]
+          >(`/academics/classes${qs ? `?${qs}` : ""}`);
+        },
+        create: (body: { academicYearId: string; name: string }) =>
+          request<{
+            id: string;
+            name: string;
+            academicYearId: string;
+            sections: { id: string; name: string; classId: string }[];
+          }>("/academics/classes", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        update: (id: string, body: { name?: string; academicYearId?: string }) =>
+          request<{
+            id: string;
+            name: string;
+            academicYearId: string;
+            sections: { id: string; name: string; classId: string }[];
+          }>(`/academics/classes/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          }),
+        remove: (id: string) =>
+          request<{ deleted: boolean }>(`/academics/classes/${id}`, { method: "DELETE" }),
+      },
+      sectionsManage: {
+        create: (body: { classId: string; name: string }) =>
+          request<{ id: string; name: string; classId: string }>("/academics/sections", {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        update: (id: string, body: { name?: string; classId?: string }) =>
+          request<{ id: string; name: string; classId: string }>(`/academics/sections/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+          }),
+        remove: (id: string) =>
+          request<{ deleted: boolean }>(`/academics/sections/${id}`, { method: "DELETE" }),
+      },
+      subjects: {
+        list: () => request<{ id: string; name: string }[]>("/academics/subjects"),
+        create: (name: string) =>
+          request<{ id: string; name: string }>("/academics/subjects", {
+            method: "POST",
+            body: JSON.stringify({ name }),
+          }),
+        update: (id: string, name: string) =>
+          request<{ id: string; name: string }>(`/academics/subjects/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ name }),
+          }),
+        remove: (id: string) =>
+          request<{ deleted: boolean }>(`/academics/subjects/${id}`, { method: "DELETE" }),
+      },
     },
     attendanceApi: {
       roster: (sectionId: string, date: string) =>
