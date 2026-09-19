@@ -23,6 +23,7 @@ import {
   todayIsoDate,
   type TimetablePeriod,
 } from "./home-snapshot";
+import { TeacherHomeDashboard } from "./teacher-home-dashboard";
 
 type SnapshotState = "idle" | "loading" | "loaded" | "error" | "offline" | "denied";
 
@@ -77,12 +78,14 @@ function useParentSnapshot(selectedChildId: string | undefined, refreshKey: numb
 }
 
 function useTodayClassesSnapshot(role: MobileHomeRole | null, refreshKey: number) {
+  const [periods, setPeriods] = useState<TimetablePeriod[]>([]);
   const [summary, setSummary] = useState<string | null>(null);
   const [state, setState] = useState<SnapshotState>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (role !== "teacher" && role !== "student") {
+      setPeriods([]);
       setSummary(null);
       setState("idle");
       setMessage(null);
@@ -94,10 +97,12 @@ function useTodayClassesSnapshot(role: MobileHomeRole | null, refreshKey: number
     void (async () => {
       try {
         const client = await api();
-        const periods = (await client.timetable.list()) as TimetablePeriod[];
-        setSummary(summarizeTodayClasses(periods));
+        const list = (await client.timetable.list()) as TimetablePeriod[];
+        setPeriods(list);
+        setSummary(summarizeTodayClasses(list));
         setState("loaded");
       } catch (error) {
+        setPeriods([]);
         setSummary(null);
         if (error instanceof TypeError) {
           setState("offline");
@@ -115,7 +120,7 @@ function useTodayClassesSnapshot(role: MobileHomeRole | null, refreshKey: number
     })();
   }, [role, refreshKey]);
 
-  return { summary, state, message };
+  return { periods, summary, state, message };
 }
 
 function SnapshotFeedback({
@@ -242,65 +247,74 @@ export function MobileHomeScreen() {
       <AppText variant="caption" color={theme.colors.primary}>
         {branding?.schoolName}
       </AppText>
-      <AppText variant="title" style={{ marginTop: 4 }}>
+      <AppText variant="title" style={{ marginTop: 4, marginBottom: 16 }}>
         {getMobileHomeTitle(homeRole)}
       </AppText>
 
-      {homeRole === "parent" ? (
-        <View className="mt-4">
-          <ChildSwitcher />
-        </View>
-      ) : null}
-
-      {showParentSnapshot ? (
+      {homeRole === "teacher" ? (
+        <TeacherHomeDashboard
+          periods={todayClasses.periods}
+          onRefresh={onRefresh}
+        />
+      ) : (
         <>
-          <SnapshotFeedback
-            state={parentSnapshot.state}
-            message={parentSnapshot.message}
-            onRetry={() => setRefreshKey((value) => value + 1)}
-          />
-          {selectedChild && parentSnapshot.state === "loaded" ? (
-            <>
-              <View className="mt-4 rounded-2xl bg-white p-4">
-                <AppText variant="label">Attendance</AppText>
-                <AppText variant="caption">
-                  {selectedChild.fullName} · {selectedChild.className}-{selectedChild.sectionName}
-                </AppText>
-                <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 8 }}>
-                  {formatAttendanceStatus(parentSnapshot.attendanceStatus)}
-                </AppText>
-              </View>
-              <View className="mt-4 rounded-2xl bg-white p-4">
-                <AppText variant="label">Fees</AppText>
-                <AppText variant="caption">{selectedChild.fullName}</AppText>
-                <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 8 }}>
-                  {formatFeeDues(parentSnapshot.dues)}
-                </AppText>
-              </View>
-            </>
-          ) : null}
-          {selectedChild == null ? (
-            <View className="mt-4 rounded-2xl bg-white p-4">
-              <AppText variant="caption">Select a child to see today&apos;s attendance and fees.</AppText>
+          {homeRole === "parent" ? (
+            <View className="mt-4">
+              <ChildSwitcher />
             </View>
           ) : null}
+
+          {showParentSnapshot ? (
+            <>
+              <SnapshotFeedback
+                state={parentSnapshot.state}
+                message={parentSnapshot.message}
+                onRetry={() => setRefreshKey((value) => value + 1)}
+              />
+              {selectedChild && parentSnapshot.state === "loaded" ? (
+                <>
+                  <View className="mt-4 rounded-2xl bg-white p-4">
+                    <AppText variant="label">Attendance</AppText>
+                    <AppText variant="caption">
+                      {selectedChild.fullName} · {selectedChild.className}-{selectedChild.sectionName}
+                    </AppText>
+                    <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 8 }}>
+                      {formatAttendanceStatus(parentSnapshot.attendanceStatus)}
+                    </AppText>
+                  </View>
+                  <View className="mt-4 rounded-2xl bg-white p-4">
+                    <AppText variant="label">Fees</AppText>
+                    <AppText variant="caption">{selectedChild.fullName}</AppText>
+                    <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 8 }}>
+                      {formatFeeDues(parentSnapshot.dues)}
+                    </AppText>
+                  </View>
+                </>
+              ) : null}
+              {selectedChild == null ? (
+                <View className="mt-4 rounded-2xl bg-white p-4">
+                  <AppText variant="caption">Select a child to see today&apos;s attendance and fees.</AppText>
+                </View>
+              ) : null}
+            </>
+          ) : null}
+
+          {showTodayPreview ? (
+            <SnapshotFeedback
+              state={previewState}
+              message={previewMessage}
+              onRetry={() => setRefreshKey((value) => value + 1)}
+            />
+          ) : null}
+
+          <View className="mt-6">
+            <AppText variant="label" style={{ marginBottom: 12 }}>
+              Quick links
+            </AppText>
+            <HomeShortcutGrid shortcuts={shortcuts} subtitles={shortcutSubtitles} />
+          </View>
         </>
-      ) : null}
-
-      {showTodayPreview ? (
-        <SnapshotFeedback
-          state={previewState}
-          message={previewMessage}
-          onRetry={() => setRefreshKey((value) => value + 1)}
-        />
-      ) : null}
-
-      <View className="mt-6">
-        <AppText variant="label" style={{ marginBottom: 12 }}>
-          Quick links
-        </AppText>
-        <HomeShortcutGrid shortcuts={shortcuts} subtitles={shortcutSubtitles} />
-      </View>
+      )}
     </ScrollView>
   );
 }

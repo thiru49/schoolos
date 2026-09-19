@@ -7,6 +7,7 @@ import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
+import { Screen, ScreenHeader } from "../../components/ui";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 import { ChildSwitcher } from "../parent/child-switcher";
 import { getCachedFees, setCachedFees, type CachedFeeRow, type CachedSummary } from "./fees-cache";
@@ -135,25 +136,30 @@ export function FeesScreen() {
 
   if (state === "denied") {
     return (
-      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
-        <DeniedState title="You cannot view these fees" detail={message} />
-      </View>
+      <Screen scrollable={true}>
+        <ScreenHeader
+          title={isStudent ? "My Fees & Dues" : "Fees & Receipts"}
+          showBack
+          onBack={() => router.back()}
+        />
+        <View className="px-4 pt-4">
+          <DeniedState title="You cannot view these fees" detail={message} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      {/* Header */}
-      <View className="px-4">
-        <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
-        <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          {isStudent ? "My Fees & Dues" : "Fees & Receipts"}
-        </AppText>
-      </View>
+    <Screen scrollable={false}>
+      <ScreenHeader
+        title={isStudent ? "My Fees & Dues" : "Fees & Receipts"}
+        showBack
+        onBack={() => router.back()}
+      />
 
       {/* Child Switcher for Parents */}
       {isParent ? (
-        <View className="mt-3 px-4">
+        <View className="mt-1 px-4">
           <ChildSwitcher />
         </View>
       ) : null}
@@ -322,6 +328,6 @@ export function FeesScreen() {
           )}
         </ScrollView>
       ) : null}
-    </View>
+    </Screen>
   );
 }

@@ -1,10 +1,13 @@
 export type TimetablePeriod = {
+  id?: string;
   weekday: number;
   startTime: string;
   endTime: string;
   subjectName: string;
   label: string;
   published: boolean;
+  sectionLabel?: string;
+  roomNumber?: string;
 };
 
 export function getTodayWeekday(date = new Date()): number {

@@ -6,34 +6,40 @@
   "scripts": {
     "dev": "expo start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx __tests__/api-client-refresh.test.ts && tsx __tests__/mobile-communications.test.ts && tsx __tests__/mobile-tenant.test.ts && tsx __tests__/mobile-home.test.ts && tsx __tests__/mobile-offline-cache.test.ts"
+    "test": "tsx __tests__/api-client-refresh.test.ts && tsx __tests__/mobile-communications.test.ts && tsx __tests__/mobile-tenant.test.ts && tsx __tests__/mobile-home.test.ts && tsx __tests__/mobile-offline-cache.test.ts && tsx __tests__/mobile-phase2-auth-shell.test.ts && tsx __tests__/mobile-phase3-teacher.test.ts"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~57.0.15",
     "@schoolos/api-client": "workspace:*",
     "@schoolos/permissions": "workspace:*",
     "@schoolos/types": "workspace:*",
     "@schoolos/ui": "workspace:*",
-    "expo": "~52.0.47",
-    "expo-constants": "~17.0.8",
-    "expo-file-system": "~18.0.12",
-    "expo-font": "~13.0.4",
-    "expo-linking": "~7.0.5",
-    "expo-notifications": "~0.29.14",
-    "expo-router": "~4.0.21",
-    "expo-secure-store": "~14.0.1",
-    "expo-splash-screen": "~0.29.24",
-    "expo-status-bar": "~2.0.1",
+    "expo": "~57.0.23",
+    "expo-constants": "~57.0.18",
+    "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
+    "expo-linking": "~57.0.10",
+    "expo-notifications": "~57.0.19",
+    "expo-router": "~57.0.21",
+    "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.9",
+    "expo-status-bar": "~57.0.1",
     "lucide-react-native": "^1.45.0",
     "nativewind": "^4.1.23",
-    "react": "18.3.1",
-    "react-native": "0.76.9",
-    "react-native-reanimated": "~3.16.1",
-    "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "~4.4.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-reanimated": "~4.5.1",
+    "react-native-safe-area-context": "5.7.0",
+    "react-native-screens": "~4.26.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
-    "@types/react": "~18.3.12",
+    "@types/node": "^24.5.2",
+    "@types/react": "~19.2.18",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.9.2"
+    "typescript": "^6.0.3"
   }
 }

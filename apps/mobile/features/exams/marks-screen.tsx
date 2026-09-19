@@ -7,6 +7,7 @@ import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
+import { Screen, ScreenHeader } from "../../components/ui";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 import { ChildSwitcher } from "../parent/child-switcher";
 import { TeacherMarksEntry } from "./teacher-marks-entry";
@@ -73,23 +74,20 @@ export function MarksScreen() {
 
   if (state === "denied") {
     return (
-      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
-        <DeniedState title="You cannot view these marks" detail={message} />
-      </View>
+      <Screen scrollable={true}>
+        <ScreenHeader title="Marks" showBack onBack={() => router.back()} />
+        <View className="px-4 pt-4">
+          <DeniedState title="You cannot view these marks" detail={message} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
+    <Screen scrollable={false}>
+      <ScreenHeader title="Marks" subtitle={examName || undefined} showBack onBack={() => router.back()} />
       <View className="px-4">
-        <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
-        <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          Marks
-        </AppText>
-        <AppText variant="caption">{examName}</AppText>
-        <View className="mt-3">
-          <AppButton label="Report card" variant="secondary" onPress={() => router.push("/report-card")} />
-        </View>
+        <AppButton label="Report card" variant="secondary" onPress={() => router.push("/report-card")} />
       </View>
       {isParent ? (
         <View className="mt-3 px-4">
@@ -136,6 +134,6 @@ export function MarksScreen() {
           ))}
         </ScrollView>
       ) : null}
-    </View>
+    </Screen>
   );
 }

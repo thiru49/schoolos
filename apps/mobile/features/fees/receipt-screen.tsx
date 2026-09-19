@@ -7,6 +7,7 @@ import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
+import { Screen, ScreenHeader } from "../../components/ui";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 import { PaymentMethodPill } from "./fees-screen";
 import { downloadMobileReceiptPdf, shareMobileReceipt } from "./mobile-receipt-pdf";
@@ -123,21 +124,18 @@ export function ReceiptScreen() {
 
   if (state === "denied") {
     return (
-      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
-        <DeniedState title="You cannot view this receipt" detail={message} />
-      </View>
+      <Screen scrollable={true}>
+        <ScreenHeader title="Receipt Details" showBack onBack={() => router.back()} />
+        <View className="px-4 pt-4">
+          <DeniedState title="You cannot view this receipt" detail={message} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      {/* Header */}
-      <View className="px-4">
-        <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
-        <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          Receipt Details
-        </AppText>
-      </View>
+    <Screen scrollable={false}>
+      <ScreenHeader title="Receipt Details" showBack onBack={() => router.back()} />
 
       {state === "loading" && !refreshing ? (
         <View className="flex-1 items-center justify-center">
@@ -256,6 +254,6 @@ export function ReceiptScreen() {
           </View>
         </ScrollView>
       ) : null}
-    </View>
+    </Screen>
   );
 }

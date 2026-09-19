@@ -1,14 +1,24 @@
 import Constants from "expo-constants";
-import * as Notifications from "expo-notifications";
 import { api } from "./api";
 
+function isExpoGo(): boolean {
+  return Constants.appOwnership === "expo";
+}
+
 export async function registerPushToken(): Promise<void> {
+  // Android remote push was removed from Expo Go in SDK 53+.
+  // Skip in Expo Go; use a development build for real push tokens.
+  if (isExpoGo()) return;
+
   try {
+    const Notifications = await import("expo-notifications");
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
       }),
     });
     const permission = await Notifications.requestPermissionsAsync();

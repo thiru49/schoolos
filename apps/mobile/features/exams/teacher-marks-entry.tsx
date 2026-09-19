@@ -1,27 +1,65 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
+import { Award, Lock, CheckCircle2, AlertCircle, Send } from "lucide-react-native";
 import { ApiError } from "@schoolos/api-client";
 import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
+import {
+  Screen,
+  ScreenHeader,
+  Card,
+  Avatar,
+  Badge,
+  AppButton,
+  AppInput,
+  StickyActionBar,
+  ModalSheet,
+} from "../../components/ui";
 import { AppText } from "../../components/ui/AppText";
-import { AppButton } from "../../components/ui/AppButton";
-import { AppInput } from "../../components/ui/AppInput";
-import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
+import {
+  DeniedState,
+  EmptyState,
+  ErrorState,
+  OfflineState,
+} from "../../components/states/Feedback";
 
-type Exam = { id: string; name: string; examDate: string; subjectName: string; maxScore: number; label: string };
-type Row = { studentId: string; fullName: string; admissionNumber: string; score: number | null; status: string | null };
+type Exam = {
+  id: string;
+  name: string;
+  examDate: string;
+  subjectName: string;
+  maxScore: number;
+  label: string;
+};
+type Row = {
+  studentId: string;
+  fullName: string;
+  admissionNumber: string;
+  score: number | null;
+  status: string | null;
+};
 
 export function TeacherMarksEntry() {
   const { theme } = useBranding();
   const router = useRouter();
   const [exams, setExams] = useState<Exam[]>([]);
   const [examId, setExamId] = useState<string | null>(null);
-  const [maxScore, setMaxScore] = useState(0);
+  const [maxScore, setMaxScore] = useState(100);
   const [title, setTitle] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
-  const [state, setState] = useState<"loading" | "loaded" | "empty" | "error" | "denied" | "offline">("loading");
+  const [state, setState] = useState<
+    "loading" | "loaded" | "saving" | "submitting" | "empty" | "error" | "denied" | "offline"
+  >("loading");
   const [message, setMessage] = useState("");
+  const [confirmSubmitModal, setConfirmSubmitModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function mapError(e: unknown) {
     if (e instanceof ApiError && e.status === 403) {
@@ -51,8 +89,8 @@ export function TeacherMarksEntry() {
       const first = list.find((e) => e.id === examId) ?? list[0];
       setExamId(first.id);
       const data = await (await api()).exams.marks(first.id);
-      setTitle(`${data.exam.name} · ${data.exam.subjectName}`);
-      setMaxScore(data.exam.maxScore);
+      setTitle(`${data.exam.name} • ${data.exam.subjectName}`);
+      setMaxScore(data.exam.maxScore ?? 100);
       setRows(data.rows);
       setState(data.rows.length === 0 ? "empty" : "loaded");
     } catch (e) {
@@ -62,7 +100,6 @@ export function TeacherMarksEntry() {
 
   useEffect(() => {
     void loadExams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function openExam(id: string) {
@@ -70,8 +107,8 @@ export function TeacherMarksEntry() {
     setState("loading");
     try {
       const data = await (await api()).exams.marks(id);
-      setTitle(`${data.exam.name} · ${data.exam.subjectName}`);
-      setMaxScore(data.exam.maxScore);
+      setTitle(`${data.exam.name} • ${data.exam.subjectName}`);
+      setMaxScore(data.exam.maxScore ?? 100);
       setRows(data.rows);
       setState(data.rows.length === 0 ? "empty" : "loaded");
     } catch (e) {
@@ -79,131 +116,279 @@ export function TeacherMarksEntry() {
     }
   }
 
+  const isSubmittedOrPublished = rows.some(
+    (r) => r.status === "submitted" || r.status === "published",
+  );
   const allDrafted =
-    rows.length > 0 && rows.every((r) => r.score != null && r.status !== "published");
-  const alreadySubmitted = rows.some((r) => r.status === "submitted" || r.status === "published");
+    rows.length > 0 && rows.every((r) => r.score != null && r.score >= 0);
+
+  // Validation: Check if any score exceeds maxScore
+  const hasInvalidScore = rows.some((r) => r.score != null && r.score > maxScore);
 
   async function saveDraft() {
     if (!examId) return;
+    if (hasInvalidScore) {
+      setMessage(`Scores cannot exceed max score of ${maxScore}`);
+      return;
+    }
+    setIsSaving(true);
     try {
       const marks = rows
         .filter((r) => r.score != null && r.status !== "submitted" && r.status !== "published")
         .map((r) => ({ studentId: r.studentId, score: r.score as number }));
       if (marks.length === 0) {
-        setMessage("Enter at least one draft score");
+        setMessage("Please enter at least one score before saving");
         return;
       }
       await (await api()).exams.draft(examId, marks);
       await openExam(examId);
     } catch (e) {
       mapError(e);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSubmitMarks() {
+    if (!examId) return;
+    if (hasInvalidScore) {
+      setMessage(`Cannot submit: some scores exceed max score of ${maxScore}`);
+      return;
+    }
+    setIsSubmitting(true);
+    setConfirmSubmitModal(false);
+    try {
+      await (await api()).exams.submit(examId);
+      await openExam(examId);
+    } catch (e) {
+      mapError(e);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   if (state === "denied") {
     return (
-      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
-        <DeniedState title="You cannot enter marks for this exam" detail={message} />
-      </View>
+      <Screen scrollable={true}>
+        <ScreenHeader title="Marks Entry" showBack />
+        <View className="px-6 pt-4">
+          <DeniedState title="Access Restricted" detail={message || "You cannot enter marks for this exam."} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      <View className="px-4">
-        <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
-        <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          Marks entry
-        </AppText>
-        <AppText variant="caption">{title} {maxScore ? `(max ${maxScore})` : ""}</AppText>
+    <Screen scrollable={false}>
+      <View className="px-6 pt-4 pb-2">
+        <ScreenHeader
+          title="Marks Entry"
+          subtitle={title || "Exam Grading Roster"}
+          showBack
+        />
+
+        {/* Exam Selection Pills */}
+        {exams.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingBottom: 10 }}
+          >
+            {exams.map((e) => {
+              const isSelected = e.id === examId;
+              return (
+                <Pressable
+                  key={e.id}
+                  onPress={() => void openExam(e.id)}
+                  className="px-4 py-2 rounded-xl border active:opacity-80"
+                  style={{
+                    backgroundColor: isSelected ? theme.colors.primary : "#FFFFFF",
+                    borderColor: isSelected ? theme.colors.primary : "#CBD5E1",
+                  }}
+                >
+                  <AppText
+                    variant="caption"
+                    style={{
+                      fontWeight: "700",
+                      color: isSelected ? "#FFFFFF" : "#334155",
+                    }}
+                  >
+                    {e.name}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
+        {/* Exam Status & Max Score Summary Card */}
+        <Card variant="default" style={{ marginBottom: 12, padding: 12 }}>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-x-2">
+              {isSubmittedOrPublished ? (
+                <Badge label="Submitted / Locked" variant="info" />
+              ) : (
+                <Badge label="Draft Mode" variant="warning" />
+              )}
+              <Badge label={`Max Score: ${maxScore}`} variant="neutral" />
+            </View>
+
+            {isSubmittedOrPublished ? (
+              <View className="flex-row items-center gap-x-1">
+                <Lock size={14} color="#64748B" />
+                <AppText variant="caption" style={{ color: "#64748B" }}>Locked</AppText>
+              </View>
+            ) : null}
+          </View>
+        </Card>
+
+        {message && (state === "loaded" || state === "error") ? (
+          <View className="p-2 mb-2 bg-red-50 border border-red-200 rounded-xl">
+            <AppText variant="caption" color={theme.colors.danger} style={{ fontWeight: "600" }}>
+              {message}
+            </AppText>
+          </View>
+        ) : null}
       </View>
 
-      {exams.length > 1 ? (
-        <ScrollView horizontal className="mt-3" contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-          {exams.map((e) => (
-            <Pressable
-              key={e.id}
-              onPress={() => void openExam(e.id)}
-              className="rounded-full px-3 py-2"
-              style={{ backgroundColor: e.id === examId ? theme.colors.primary : "white" }}
-            >
-              <AppText variant="caption" color={e.id === examId ? "white" : theme.colors.ink}>
-                {e.name}
-              </AppText>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-
+      {/* States */}
       {state === "loading" ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator />
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <AppText variant="caption" style={{ marginTop: 12, color: "#64748B" }}>
+            Loading marks roster…
+          </AppText>
         </View>
       ) : null}
+
       {state === "offline" ? <OfflineState onRetry={() => void loadExams()} /> : null}
       {state === "error" ? <ErrorState message={message} onRetry={() => void loadExams()} /> : null}
       {state === "empty" ? (
-        <View className="p-4">
-          <EmptyState title="No exam" detail={message || "No exam in your assigned section."} />
+        <View className="p-6">
+          <EmptyState title="No Exams Found" detail={message || "No exams currently scheduled in your scope."} />
         </View>
       ) : null}
 
-      {state === "loaded" ? (
-        <>
-          {message ? (
-            <AppText variant="caption" color={theme.colors.danger} style={{ paddingHorizontal: 16, marginTop: 8 }}>
-              {message}
-            </AppText>
-          ) : null}
-          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 180 }}>
-            {rows.map((r) => (
-              <View key={r.studentId} className="mb-2 rounded-2xl bg-white p-3">
-                <AppText variant="label">{r.fullName}</AppText>
-                <AppText variant="caption">{r.admissionNumber} · {r.status ?? "—"}</AppText>
-                {r.status === "submitted" || r.status === "published" ? (
-                  <AppText style={{ marginTop: 8 }}>{r.score ?? "—"}</AppText>
-                ) : (
-                  <View className="mt-2">
-                    <AppInput
-                      keyboardType="numeric"
-                      value={r.score == null ? "" : String(r.score)}
-                      onChangeText={(v) =>
-                        setRows((prev) =>
-                          prev.map((row) =>
-                            row.studentId === r.studentId
-                              ? { ...row, score: v === "" ? null : Number(v) }
-                              : row,
-                          ),
-                        )
-                      }
-                    />
+      {/* Student Marks List */}
+      {(state === "loaded" || state === "saving" || state === "submitting") && rows.length > 0 ? (
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120 }}>
+          <View className="gap-y-2.5">
+            {rows.map((r, idx) => {
+              const isInvalid = r.score != null && r.score > maxScore;
+              return (
+                <Card key={r.studentId} variant="default" style={{ padding: 12 }}>
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-x-3 flex-1 pr-3">
+                      <Avatar name={r.fullName} size="sm" />
+                      <View className="flex-1">
+                        <AppText variant="title" style={{ fontSize: 15, fontWeight: "700" }}>
+                          {r.fullName}
+                        </AppText>
+                        <AppText variant="caption" style={{ color: "#64748B", fontSize: 12 }}>
+                          {r.admissionNumber ? `ID: ${r.admissionNumber}` : `Roll #${idx + 1}`}
+                        </AppText>
+                      </View>
+                    </View>
+
+                    {isSubmittedOrPublished ? (
+                      <View className="px-4 py-2 bg-slate-100 rounded-xl items-center">
+                        <AppText variant="title" style={{ fontSize: 16, fontWeight: "800", color: "#1E293B" }}>
+                          {r.score != null ? `${r.score} / ${maxScore}` : "—"}
+                        </AppText>
+                      </View>
+                    ) : (
+                      <View className="w-24">
+                        <AppInput
+                          keyboardType="numeric"
+                          placeholder={`0-${maxScore}`}
+                          value={r.score == null ? "" : String(r.score)}
+                          onChangeText={(v) => {
+                            if (message) setMessage("");
+                            setRows((prev) =>
+                              prev.map((row) =>
+                                row.studentId === r.studentId
+                                  ? { ...row, score: v === "" ? null : Number(v) }
+                                  : row,
+                              ),
+                            );
+                          }}
+                          style={{
+                            textAlign: "center",
+                            fontWeight: "700",
+                            borderColor: isInvalid ? "#DC2626" : "#E2E8F0",
+                          }}
+                        />
+                        {isInvalid ? (
+                          <AppText variant="caption" color="#DC2626" style={{ fontSize: 10, marginTop: 2, textAlign: "center" }}>
+                            Exceeds {maxScore}
+                          </AppText>
+                        ) : null}
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
-            ))}
-          </ScrollView>
-          <View className="absolute bottom-0 left-0 right-0 px-4 pb-6 pt-3" style={{ backgroundColor: theme.colors.background }}>
-            <AppButton label="Save draft" onPress={() => void saveDraft()} />
-            {allDrafted && !alreadySubmitted ? (
-              <View className="mt-2">
+                </Card>
+              );
+            })}
+          </View>
+        </ScrollView>
+      ) : null}
+
+      {/* Sticky Bottom Actions */}
+      {!isSubmittedOrPublished && rows.length > 0 && state === "loaded" ? (
+        <StickyActionBar>
+          <View className="flex-row gap-x-3 w-full">
+            <View className="flex-1">
+              <AppButton
+                label={rows.some((r) => r.score != null) ? "Update Draft" : "Save Draft"}
+                variant="outline"
+                loading={isSaving}
+                onPress={() => void saveDraft()}
+              />
+            </View>
+
+            {allDrafted ? (
+              <View className="flex-1">
                 <AppButton
-                  label="Submit for publish"
-                  variant="secondary"
-                  onPress={async () => {
-                    if (!examId) return;
-                    try {
-                      await (await api()).exams.submit(examId);
-                      await openExam(examId);
-                    } catch (e) {
-                      mapError(e);
-                    }
-                  }}
+                  label="Submit Marks"
+                  variant="primary"
+                  rightIcon={<Send size={16} color="white" />}
+                  onPress={() => setConfirmSubmitModal(true)}
                 />
               </View>
             ) : null}
           </View>
-        </>
+        </StickyActionBar>
       ) : null}
-    </View>
+
+      {/* Submission Confirmation Sheet */}
+      <ModalSheet
+        visible={confirmSubmitModal}
+        title="Confirm Marks Submission"
+        onClose={() => setConfirmSubmitModal(false)}
+      >
+        <View className="p-4 gap-y-3">
+          <AppText variant="body" style={{ color: "#475569" }}>
+            Are you sure you want to submit marks for <AppText style={{ fontWeight: "700" }}>{title}</AppText>?
+          </AppText>
+          <AppText variant="caption" style={{ color: "#64748B" }}>
+            Once submitted, marks will be locked for official review and cannot be edited by the class teacher without administrative override.
+          </AppText>
+
+          <View className="mt-4 gap-y-2">
+            <AppButton
+              label="Confirm & Submit"
+              variant="primary"
+              loading={isSubmitting}
+              onPress={() => void handleSubmitMarks()}
+            />
+            <AppButton
+              label="Keep Editing"
+              variant="outline"
+              onPress={() => setConfirmSubmitModal(false)}
+            />
+          </View>
+        </View>
+      </ModalSheet>
+    </Screen>
   );
 }
