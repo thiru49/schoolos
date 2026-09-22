@@ -3,53 +3,48 @@
 Tenant: **Arul Neri Academy** (`arulneri`). Isolation: `school-b`.
 Password: `Password123!`.
 
-Visual check is a **code + contract audit**. Expo cannot run in this merge environment. Each screen below is mapped to role, tokens, and empty/error/offline/denied.
+Executable contracts live in `apps/mobile/features/home/all-scenarios.ts` and `__tests__/mobile-all-scenarios.test.ts`.
 
-## Shell (all roles)
+## Auth (all roles)
 
-| Screen | Route | Tokens | States |
+`/` → `/school-select` → `/login` → `/role-select` (multi-role only) → tabs.
+
+## Teacher `TCH-8A`
+
+| Scenario | Route | UI | Must not |
 |---|---|---|---|
-| Splash | `/` | branding + canvas | loading branding |
-| School select | `/school-select` | primary / surface | invalid slug |
-| Login | `/login` | AppInput / AppButton | auth error |
-| Role select | `/role-select` | cards | multi-role only |
-| Tabs | Home / Academics / Updates / Profile | tab bar = primary + surface + inkMuted | OfflineBanner |
+| T1 home | Home | TeacherHomeDashboard | fees, child switcher |
+| T2 roster | /attendance | TeacherRoster P/A/L/H save | parent calendar |
+| T3 homework | /homework | assign sheet | — |
+| T4 marks | /marks | TeacherMarksEntry | published-only view |
+| T5 fees | /fees | hidden | collect UPI |
+| Isolation | 9-B | 403 | other tenant |
 
-## Teacher `TCH-8A` (8-A only)
+Attendance tile: Pending / N left / Saved from live roster.
 
-1. Home → identity Class Teacher · 8-A → metrics → mark attendance / homework / marks → today periods.
-2. Academics → attendance, timetable, homework, marks. **No fees. No report-card download.**
-3. Attendance roster → P/A/L/H → save → 9-B hidden / 403.
-4. Homework create sheet → publish.
-5. Marks draft → validate max → submit sheet.
-6. Timetable Mon–Sat + Today.
-7. Updates = notices / events / holidays.
-8. Profile = role, school, logout.
+## Parent `9000000001` (Arun)
 
-## Parent `9000000001` (Arun only)
-
-1. Home → child switcher → today attendance + dues.
-2. Academics → attendance calendar, timetable, homework, published marks, report card, fees/receipts.
-3. Cannot open teacher roster or mark 9-B.
-4. Fees = dues + receipt list (no UPI collect).
-5. Report card = published rows only.
+| Scenario | Route | UI | Must not |
+|---|---|---|---|
+| P1 home | Home | ParentHomeDashboard + child switcher | roster save |
+| P2 calendar | /attendance | ParentHistory | mark P/A/L/H |
+| P3 fees | /fees | dues + ANA receipts | UPI collect |
+| P4 report | /report-card | published | draft marks |
 
 ## Student `AN2021-0001`
 
-1. Home → own periods + homework + results.
-2. Academics → timetable, homework, attendance, marks, report card. **No fees module.**
-3. Marks/report = own published data.
+| Scenario | Route | UI | Must not |
+|---|---|---|---|
+| S1 home | Home | StudentHomeDashboard | fees, child switcher |
+| S2 fees | /fees | hidden on Academics | dues |
+| S3 marks | /marks | published own | teacher draft |
 
-## Design system contract
+## Design system
 
-- Colour from `createTheme` / `theme.colors` (Arul Neri navy + gold).
-- Status chips: P present, A absent, L late, H holiday.
-- Primitives: Screen, ScreenHeader, Card, MetricCard, StatusChip, AppButton, ModalSheet, StickyActionBar.
-- Feedback: Empty / Error / Offline / Denied on domain screens.
-- Tamil: Noto allowlist; no second palette.
+- `theme.colors` from branding (navy + gold).
+- Screen, ScreenHeader, Card, MetricCard, StatusChip, AppButton, ModalSheet, StickyActionBar.
+- Empty / Error / Offline / Denied on domain screens.
 
-## Known gaps (not this pass)
+## Device pass still required
 
-- Cannot screenshot a live device here.
-- Some inner cards still use slate hex; next pass maps them to `inkMuted` / `surface`.
-- No UPI, bus, chat, Classes 1–12 census.
+Expo + API cannot run in this merge environment. After `pnpm --filter @schoolos/mobile test` run the three logins on a phone.
