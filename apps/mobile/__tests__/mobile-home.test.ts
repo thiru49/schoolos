@@ -75,13 +75,13 @@ async function main() {
   const studentShortcuts = filterVisibleShortcuts("student", studentPermissions());
   assert.deepEqual(
     studentShortcuts.map((item) => item.id),
-    ["timetable", "homework", "exams", "attendance", "notices"],
+    ["timetable", "homework", "exams", "report-card", "attendance", "notices"],
   );
 
   const parentShortcuts = filterVisibleShortcuts("parent", parentPermissions());
   assert.deepEqual(
     parentShortcuts.map((item) => item.id),
-    ["attendance", "homework", "fees", "exams", "notices"],
+    ["attendance", "homework", "fees", "exams", "report-card", "notices"],
   );
 
   const teacherWithoutNotices = filterVisibleShortcuts(
@@ -95,8 +95,8 @@ async function main() {
   );
 
   assert.equal(getMobileHomeTitle("teacher"), "Your day");
-  assert.equal(getMobileHomeTitle("student"), "Today");
-  assert.equal(getMobileHomeTitle("parent"), "Today");
+  assert.equal(getMobileHomeTitle("student"), "My day");
+  assert.equal(getMobileHomeTitle("parent"), "Your child today");
 
   assert.equal(isShortcutVisible(getHomeShortcuts("parent")[2], parentPermissions()), true);
   assert.equal(
