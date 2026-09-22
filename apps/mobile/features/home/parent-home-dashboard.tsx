@@ -14,6 +14,7 @@ import { ChildSwitcher } from "../parent/child-switcher";
 import { Card, MetricCard, SectionHeader, Avatar, Badge } from "../../components/ui";
 import { AppText } from "../../components/ui/AppText";
 import { formatAttendanceStatus, formatFeeDues } from "./home-snapshot";
+import { formatParentChildBadge } from "./enduser-copy";
 
 export function ParentHomeDashboard({
   attendanceStatus,
@@ -27,6 +28,8 @@ export function ParentHomeDashboard({
   const childLabel = selectedChild
     ? `${selectedChild.className}-${selectedChild.sectionName}`
     : "Select child";
+  const inkMuted = theme.colors.inkMuted ?? "#64748B";
+  const ink = theme.colors.ink ?? "#0F172A";
 
   return (
     <View className="gap-y-6">
@@ -34,14 +37,14 @@ export function ParentHomeDashboard({
         <View className="flex-row items-center gap-x-3.5">
           <Avatar name={selectedChild?.fullName ?? "Parent"} role="parent" size="lg" />
           <View className="flex-1">
-            <AppText variant="caption" style={{ color: "#64748B", fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}>
+            <AppText variant="caption" style={{ color: inkMuted, fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}>
               {branding?.schoolName ?? "Arul Neri Academy"}
             </AppText>
-            <AppText variant="title" style={{ fontSize: 18, fontWeight: "800", color: "#1E293B" }} numberOfLines={1}>
+            <AppText variant="title" style={{ fontSize: 18, fontWeight: "800", color: ink }} numberOfLines={1}>
               {selectedChild?.fullName ?? "Your child"}
             </AppText>
             <View className="flex-row items-center gap-x-2 mt-1">
-              <Badge label={`Parent · ${childLabel}`} variant="info" />
+              <Badge label={formatParentChildBadge(selectedChild?.className, selectedChild?.sectionName)} variant="info" />
             </View>
           </View>
         </View>
@@ -80,41 +83,11 @@ export function ParentHomeDashboard({
         <SectionHeader title="Look after" />
         <View className="gap-y-3">
           {[
-            {
-              route: "/attendance",
-              title: "Attendance calendar",
-              caption: "Month view · Present / Absent / Late / Holiday",
-              icon: CalendarCheck,
-              color: "#059669",
-            },
-            {
-              route: "/fees",
-              title: "Fees & receipts",
-              caption: "Dues and official receipts · no collection on mobile",
-              icon: CreditCard,
-              color: "#0D9488",
-            },
-            {
-              route: "/homework",
-              title: "Homework",
-              caption: "Due work for this child",
-              icon: BookOpenCheck,
-              color: "#7C3AED",
-            },
-            {
-              route: "/report-card",
-              title: "Report card",
-              caption: "Published term card only",
-              icon: FileText,
-              color: "#2563EB",
-            },
-            {
-              route: "/marks",
-              title: "Exam results",
-              caption: "Published marks only",
-              icon: Award,
-              color: "#EA580C",
-            },
+            { route: "/attendance", title: "Attendance calendar", caption: "Month view · Present / Absent / Late / Holiday", icon: CalendarCheck, color: "#059669" },
+            { route: "/fees", title: "Fees & receipts", caption: "Dues and official receipts · no collection on mobile", icon: CreditCard, color: "#0D9488" },
+            { route: "/homework", title: "Homework", caption: "Due work for this child", icon: BookOpenCheck, color: "#7C3AED" },
+            { route: "/report-card", title: "Report card", caption: "Published term card only", icon: FileText, color: "#2563EB" },
+            { route: "/marks", title: "Exam results", caption: "Published marks only", icon: Award, color: "#EA580C" },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -129,12 +102,12 @@ export function ParentHomeDashboard({
                         <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
                           {item.title}
                         </AppText>
-                        <AppText variant="caption" style={{ color: "#64748B", marginTop: 2 }}>
+                        <AppText variant="caption" style={{ color: inkMuted, marginTop: 2 }}>
                           {item.caption}
                         </AppText>
                       </View>
                     </View>
-                    <ChevronRight size={20} color="#94A3B8" />
+                    <ChevronRight size={20} color={theme.colors.borderStrong ?? "#94A3B8"} />
                   </View>
                 </Card>
               </Pressable>
