@@ -7,6 +7,7 @@ import { useBranding } from "../branding/branding-provider";
 import { ChildSwitcher } from "../parent/child-switcher";
 import { AppText } from "../../components/ui/AppText";
 import { AppButton } from "../../components/ui/AppButton";
+import { Screen, ScreenHeader } from "../../components/ui";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 
 type Row = { studentId: string; fullName: string; date: string; status: string | null };
@@ -105,14 +106,15 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
   const cells: (number | null)[] = [...Array(firstWeekday).fill(null), ...Array.from({ length: range.last }, (_, i) => i + 1)];
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      <AppButton label="Back" variant="secondary" onPress={() => router.back()} style={{ marginHorizontal: 16 }} />
-      <AppText variant="title" color={theme.colors.primary} style={{ paddingHorizontal: 16, marginTop: 12 }}>
-        Attendance · {label}
-      </AppText>
-      <AppText style={{ paddingHorizontal: 16, marginTop: 4 }}>வருகை வரலாறு</AppText>
+    <Screen scrollable={false}>
+      <ScreenHeader
+        title="Attendance"
+        subtitle={`${label || "History"} • வருகை வரலாறு`}
+        showBack
+        onBack={() => router.back()}
+      />
       {mode === "parent" ? (
-        <View className="mt-3 px-4">
+        <View className="mt-1 px-4">
           <ChildSwitcher />
         </View>
       ) : null}
@@ -200,6 +202,6 @@ export function ParentHistory({ mode }: { mode: "parent" | "student" }) {
           )}
         </ScrollView>
       ) : null}
-    </View>
+    </Screen>
   );
 }

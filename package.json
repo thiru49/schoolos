@@ -36,5 +36,11 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "pnpm": {
+    "overrides": {
+      "nativewind": "4.1.23",
+      "react-native-css-interop": "0.1.22"
+    }
   }
 }

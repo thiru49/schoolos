@@ -5,7 +5,7 @@ import { ApiError } from "@schoolos/api-client";
 import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
-import { AppButton } from "../../components/ui/AppButton";
+import { Screen, ScreenHeader } from "../../components/ui";
 import { DeniedState, EmptyState, ErrorState, OfflineState } from "../../components/states/Feedback";
 import { ChildSwitcher } from "../parent/child-switcher";
 
@@ -56,22 +56,20 @@ export function ReportCardScreen() {
 
   if (state === "denied") {
     return (
-      <View className="flex-1 px-4 pt-16" style={{ backgroundColor: theme.colors.background }}>
-        <DeniedState title="You cannot view this report card" detail={message} />
-      </View>
+      <Screen scrollable={true}>
+        <ScreenHeader title="Report card" showBack onBack={() => router.back()} />
+        <View className="px-4 pt-4">
+          <DeniedState title="You cannot view this report card" detail={message} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View className="flex-1" style={{ backgroundColor: theme.colors.background, paddingTop: 56 }}>
-      <View className="px-4">
-        <AppButton label="Back" variant="secondary" onPress={() => router.back()} />
-        <AppText variant="title" color={theme.colors.primary} style={{ marginTop: 12 }}>
-          Report card
-        </AppText>
-      </View>
+    <Screen scrollable={false}>
+      <ScreenHeader title="Report card" showBack onBack={() => router.back()} />
       {isParent ? (
-        <View className="mt-3 px-4">
+        <View className="mt-1 px-4">
           <ChildSwitcher />
         </View>
       ) : null}
@@ -106,6 +104,6 @@ export function ReportCardScreen() {
           ))}
         </ScrollView>
       ) : null}
-    </View>
+    </Screen>
   );
 }

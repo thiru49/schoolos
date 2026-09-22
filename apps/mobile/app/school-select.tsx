@@ -1,13 +1,30 @@
-import { useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import React, { useState } from "react";
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
+import { School, ArrowRight, Sparkles } from "lucide-react-native";
 import { useBranding } from "../features/branding/branding-provider";
 import { loadTenantBranding } from "../features/tenant/load-tenant-branding";
-import { brandingMatchesSlug, isSlugPresent, normalizeSlug } from "../features/tenant/tenant-policy";
+import {
+  brandingMatchesSlug,
+  isSlugPresent,
+  normalizeSlug,
+} from "../features/tenant/tenant-policy";
 import { setSlug } from "../services/storage";
+import {
+  Screen,
+  ScreenHeader,
+  Card,
+  AppInput,
+  AppButton,
+  Badge,
+} from "../components/ui";
 import { AppText } from "../components/ui/AppText";
-import { AppInput } from "../components/ui/AppInput";
-import { AppButton } from "../components/ui/AppButton";
 
 const DEFAULT_SLUG_HINT = process.env.EXPO_PUBLIC_DEFAULT_SLUG ?? "arulneri";
 
@@ -18,76 +35,146 @@ export default function SchoolSelect() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function continueToSchool() {
-    const slug = normalizeSlug(slugInput);
+  async function continueToSchool(targetSlug?: string) {
+    const raw = targetSlug ?? slugInput;
+    const slug = normalizeSlug(raw);
     if (!isSlugPresent(slug)) {
-      setError("Enter your school code");
+      setError("Please enter your school code");
       return;
     }
 
+    Keyboard.dismiss();
     setLoading(true);
     setError(null);
     try {
       const tenantBranding = await loadTenantBranding(slug);
       if (!brandingMatchesSlug(tenantBranding, slug)) {
-        setError("School unavailable");
+        setError("School code is invalid or unavailable.");
         return;
       }
       await setSlug(slug);
       setBranding(tenantBranding);
       router.replace("/role-select");
-    } catch {
-      setError("School unavailable");
+    } catch (err) {
+      console.error("Failed to load school branding:", err);
+      setError("Could not reach school server. Check connection.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <View className="flex-1 justify-center px-6" style={{ backgroundColor: theme.colors.background }}>
-      <AppText variant="display" color={theme.colors.primary}>
-        SchoolOS
-      </AppText>
-      <AppText variant="body" style={{ marginTop: 8 }}>
-        Enter your school code to continue
-      </AppText>
-      <AppText variant="caption" style={{ marginTop: 4 }}>
-        Your administrator can share this code (tenant slug).
-      </AppText>
-      <AppInput
-        className="mt-6"
-        placeholder="School code"
-        value={slugInput}
-        onChangeText={setSlugInput}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!loading}
-      />
-      {error ? (
-        <AppText variant="caption" color={theme.colors.danger} style={{ marginTop: 8 }}>
-          {error}
-        </AppText>
-      ) : null}
-      {branding && !loading ? (
-        <View className="mt-4 rounded-2xl bg-white p-4">
-          <AppText variant="label" color={theme.colors.primary}>
-            {branding.schoolName}
-          </AppText>
-          {branding.tagline ? (
-            <AppText variant="caption" style={{ marginTop: 4 }}>
-              {branding.tagline}
+    <Screen scrollable={true}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
+        <View className="px-6 pt-10 pb-8">
+          {/* Header */}
+          <View className="mb-6">
+            <View className="flex-row items-center gap-x-2 mb-2">
+              <View
+                className="w-10 h-10 rounded-2xl items-center justify-center shadow-sm"
+                style={{ backgroundColor: `${theme.colors.primary}18` }}
+              >
+                <School size={22} color={theme.colors.primary} />
+              </View>
+              <Badge label="SchoolOS" variant="info" />
+            </View>
+
+            <AppText
+              variant="display"
+              color={theme.colors.primary}
+              style={{ fontSize: 28, fontWeight: "800" }}
+            >
+              Select Your School
             </AppText>
-          ) : null}
+            <AppText
+              variant="body"
+              style={{ marginTop: 6, color: "#475569", fontSize: 15 }}
+            >
+              Enter the unique school code provided by your administration.
+            </AppText>
+          </View>
+
+          {/* School Code Input Form */}
+          <Card variant="elevated" style={{ marginBottom: 20 }}>
+            <View className="gap-y-3">
+              <AppInput
+                label="School Code (Slug)"
+                placeholder="e.g. arulneri"
+                value={slugInput}
+                onChangeText={(text) => {
+                  setSlugInput(text);
+                  if (error) setError(null);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={() => void continueToSchool()}
+                editable={!loading}
+              />
+
+              {error ? (
+                <View className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <AppText variant="caption" color={theme.colors.danger} style={{ fontWeight: "600" }}>
+                    {error}
+                  </AppText>
+                </View>
+              ) : null}
+
+              <AppButton
+                label={loading ? "Verifying school…" : "Continue"}
+                loading={loading}
+                variant="primary"
+                onPress={() => void continueToSchool()}
+                rightIcon={<ArrowRight size={18} color="white" />}
+              />
+            </View>
+          </Card>
+
+          {/* Featured Demo School Card */}
+          <View className="mb-4">
+            <AppText
+              variant="label"
+              style={{ color: "#64748B", marginBottom: 8, textTransform: "uppercase", fontSize: 12, letterSpacing: 1 }}
+            >
+              Demo School Instance
+            </AppText>
+
+            <Pressable
+              onPress={() => {
+                setSlugInput("arulneri");
+                if (error) setError(null);
+                void continueToSchool("arulneri");
+              }}
+            >
+              <Card variant="outlined" style={{ backgroundColor: "#F8FAFC", borderColor: "#CBD5E1" }}>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <View className="flex-row items-center gap-x-2 mb-1">
+                      <AppText variant="title" color={theme.colors.primary} style={{ fontSize: 16, fontWeight: "700" }}>
+                        Arul Neri Academy
+                      </AppText>
+                      <Badge label="Active Demo" variant="success" />
+                    </View>
+                    <AppText variant="caption" style={{ color: "#64748B" }}>
+                      Learn with purpose • Tamil Nadu (code: arulneri)
+                    </AppText>
+                  </View>
+
+                  <View
+                    className="w-9 h-9 rounded-full items-center justify-center"
+                    style={{ backgroundColor: `${theme.colors.primary}12` }}
+                  >
+                    <Sparkles size={18} color={theme.colors.primary} />
+                  </View>
+                </View>
+              </Card>
+            </Pressable>
+          </View>
         </View>
-      ) : null}
-      <View className="mt-5">
-        <AppButton
-          label={loading ? "Loading school…" : "Continue"}
-          loading={loading}
-          onPress={() => void continueToSchool()}
-        />
-      </View>
-      {loading ? <ActivityIndicator color={theme.colors.primary} style={{ marginTop: 16 }} /> : null}
-    </View>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }

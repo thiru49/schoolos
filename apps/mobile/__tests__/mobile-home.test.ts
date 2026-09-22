@@ -135,11 +135,11 @@ async function main() {
 
   assert.equal(filterTodayPeriods(periods, 1).length, 2);
   assert.match(
-    summarizeTodayClasses(periods, new Date("2026-09-14T09:30:00.000Z")),
+    summarizeTodayClasses(periods, new Date("2026-09-14T09:30:00")),
     /^Now: Math$/,
   );
   assert.match(
-    summarizeTodayClasses(periods, new Date("2026-09-14T09:50:00.000Z")),
+    summarizeTodayClasses(periods, new Date("2026-09-14T09:50:00")),
     /^Next: English at 10:00$/,
   );
   assert.equal(formatAttendanceStatus("P"), "Present");
