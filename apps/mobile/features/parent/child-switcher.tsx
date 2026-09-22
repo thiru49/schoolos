@@ -4,6 +4,7 @@ import type { LinkedChild } from "@schoolos/types";
 import { api } from "../../services/api";
 import { useBranding } from "../branding/branding-provider";
 import { AppText } from "../../components/ui/AppText";
+import { Card, Badge } from "../../components/ui";
 
 export function ChildSwitcher() {
   const { selectedChild, setSelectedChild, theme } = useBranding();
@@ -23,20 +24,30 @@ export function ChildSwitcher() {
   if (!loaded) return null;
   if (children.length === 0) {
     return (
-      <AppText variant="caption">No linked children — contact school office</AppText>
+      <AppText variant="caption" color={theme.colors.inkMuted}>
+        No linked children — contact school office
+      </AppText>
     );
   }
 
   return (
     <View>
-      <Pressable
-        onPress={() => setOpen((v) => !v)}
-        className="rounded-full bg-white px-4 py-2"
-        style={{ alignSelf: "flex-start" }}
-      >
-        <AppText variant="label">
-          {selectedChild ? `${selectedChild.fullName} · ${selectedChild.className}-${selectedChild.sectionName}` : "Select child"}
-        </AppText>
+      <Pressable onPress={() => setOpen((v) => !v)}>
+        <Card variant="outlined">
+          <View className="flex-row items-center justify-between">
+            <View>
+              <AppText variant="caption" color={theme.colors.inkMuted}>
+                Viewing child
+              </AppText>
+              <AppText variant="label" style={{ marginTop: 2 }}>
+                {selectedChild
+                  ? `${selectedChild.fullName} · ${selectedChild.className}-${selectedChild.sectionName}`
+                  : "Select child"}
+              </AppText>
+            </View>
+            <Badge label={open ? "Close" : children.length > 1 ? "Switch" : "Linked"} variant="info" />
+          </View>
+        </Card>
       </Pressable>
       {open
         ? children.map((c) => (
@@ -49,11 +60,12 @@ export function ChildSwitcher() {
                   setOpen(false);
                 })();
               }}
-              className="mt-2 rounded-xl bg-white px-4 py-3"
             >
-              <AppText color={c.studentId === selectedChild?.studentId ? theme.colors.primary : theme.colors.ink}>
-                {c.fullName} · {c.className}-{c.sectionName}
-              </AppText>
+              <Card variant={c.studentId === selectedChild?.studentId ? "elevated" : "default"} style={{ marginTop: 8 }}>
+                <AppText color={c.studentId === selectedChild?.studentId ? theme.colors.primary : theme.colors.ink}>
+                  {c.fullName} · {c.className}-{c.sectionName}
+                </AppText>
+              </Card>
             </Pressable>
           ))
         : null}

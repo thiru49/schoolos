@@ -7,21 +7,14 @@ import {
   Award,
   Clock,
   ChevronRight,
-  ArrowRight,
   Sparkles,
   Users,
 } from "lucide-react-native";
 import type { TimetablePeriod } from "./home-snapshot";
+import { formatTeacherAttendanceMetric } from "./enduser-copy";
 import { useBranding } from "../branding/branding-provider";
 import { api } from "../../services/api";
-import {
-  Card,
-  MetricCard,
-  SectionHeader,
-  Avatar,
-  Badge,
-  AppButton,
-} from "../../components/ui";
+import { Card, MetricCard, SectionHeader, Avatar, Badge } from "../../components/ui";
 import { AppText } from "../../components/ui/AppText";
 
 interface TeacherHomeDashboardProps {
@@ -29,70 +22,60 @@ interface TeacherHomeDashboardProps {
   onRefresh: () => void;
 }
 
-export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboardProps) {
-  const { theme, branding, acl } = useBranding();
+export function TeacherHomeDashboard({ periods }: TeacherHomeDashboardProps) {
+  const { theme, acl } = useBranding();
   const router = useRouter();
 
-  const [assignedSection, setAssignedSection] = useState<string>("8-A");
-  const [activeHomeworkCount, setActiveHomeworkCount] = useState<number>(0);
+  const [assignedSection, setAssignedSection] = useState("8-A");
+  const [activeHomeworkCount, setActiveHomeworkCount] = useState(0);
+  const [attendanceLabel, setAttendanceLabel] = useState("Pending");
 
   useEffect(() => {
     void (async () => {
       try {
         const client = await api();
         const sections = await client.academics.sections();
-        if (sections.length > 0) {
-          setAssignedSection(sections[0].label);
-          const hw = await client.homework.list({ sectionId: sections[0].id });
-          setActiveHomeworkCount(hw.length);
-        }
+        if (sections.length === 0) return;
+        setAssignedSection(sections[0].label);
+        const date = new Date().toISOString().slice(0, 10);
+        const [hw, roster] = await Promise.all([
+          client.homework.list({ sectionId: sections[0].id }),
+          client.attendanceApi.roster(sections[0].id, date),
+        ]);
+        setActiveHomeworkCount(hw.length);
+        const total = roster.rows.length;
+        const marked = roster.rows.filter((r) => Boolean(r.status)).length;
+        setAttendanceLabel(formatTeacherAttendanceMetric({ total, marked, unmarked: total - marked }));
       } catch {
         /* best effort */
       }
     })();
   }, []);
 
-  // Filter periods for today
   const todayDay = new Date().getDay() === 0 ? 7 : new Date().getDay();
   const todayClasses = periods.filter((p) => p.weekday === todayDay);
   const totalClassesCount = todayClasses.length > 0 ? todayClasses.length : periods.length;
+  const inkMuted = theme.colors.inkMuted ?? "#64748B";
 
   return (
     <View className="gap-y-6">
-      {/* 1. Teacher Identity & Greeting Banner */}
-      <Card variant="elevated" style={{ backgroundColor: "#FFFFFF" }}>
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
-            <Avatar
-              name={acl?.userId ?? "Teacher"}
-              role="teacher"
-              size="lg"
-            />
-            <View className="flex-1">
-              <View className="flex-row items-center gap-x-2 mb-1">
-                <AppText
-                  variant="caption"
-                  style={{ color: "#64748B", fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}
-                >
-                  Welcome back
-                </AppText>
-              </View>
-              <AppText
-                variant="title"
-                style={{ fontSize: 18, fontWeight: "800", color: "#1E293B" }}
-                numberOfLines={1}
-              >
-                {acl?.userId ?? "Maria Selvam"}
-              </AppText>
-              <View className="flex-row items-center gap-x-2 mt-1">
-                <Badge label={`Class Teacher • ${assignedSection}`} variant="primary" />
-              </View>
+      <Card variant="elevated">
+        <View className="flex-row items-center gap-x-3.5">
+          <Avatar name={acl?.userId ?? "Teacher"} role="teacher" size="lg" />
+          <View className="flex-1">
+            <AppText variant="caption" style={{ color: inkMuted, fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}>
+              Welcome back
+            </AppText>
+            <AppText variant="title" style={{ fontSize: 18, fontWeight: "800", color: theme.colors.ink }} numberOfLines={1}>
+              {acl?.userId ?? "Teacher"}
+            </AppText>
+            <View className="mt-1">
+              <Badge label={`Class Teacher • ${assignedSection}`} variant="primary" />
             </View>
           </View>
         </View>
       </Card>
 
-      {/* 2. Key Operational Metrics (Recurrly Metric Pattern) */}
       <View>
         <SectionHeader title="Today's Overview" />
         <View className="flex-row gap-x-3 mb-3">
@@ -100,7 +83,7 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
             <MetricCard
               label="Today's Classes"
               value={totalClassesCount > 0 ? `${totalClassesCount} Periods` : "Free Today"}
-              subtitle={assignedSection ? `Section ${assignedSection}` : "Assigned"}
+              subtitle={`Section ${assignedSection}`}
               accentColor="#0284C7"
               icon={<Clock size={20} color="#0284C7" />}
               onPress={() => router.push("/timetable")}
@@ -109,7 +92,7 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
           <View className="flex-1">
             <MetricCard
               label="Daily Attendance"
-              value="Pending"
+              value={attendanceLabel}
               subtitle={`Class ${assignedSection}`}
               accentColor="#059669"
               icon={<CalendarCheck size={20} color="#059669" />}
@@ -117,7 +100,6 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
             />
           </View>
         </View>
-
         <View className="flex-row gap-x-3">
           <View className="flex-1">
             <MetricCard
@@ -132,8 +114,8 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
           <View className="flex-1">
             <MetricCard
               label="Marks Entry"
-              value="Mid-Term 1"
-              subtitle="Draft Scores"
+              value="Open book"
+              subtitle="Draft then submit"
               accentColor="#EA580C"
               icon={<Award size={20} color="#EA580C" />}
               onPress={() => router.push("/marks")}
@@ -142,114 +124,54 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
         </View>
       </View>
 
-      {/* 3. Quick Action Cards */}
       <View>
         <SectionHeader title="Quick Actions" />
         <View className="gap-y-3">
-          <Pressable onPress={() => router.push("/attendance")} className="active:opacity-80">
-            <Card variant="default">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
-                  <View
-                    className="w-12 h-12 rounded-2xl items-center justify-center shadow-sm"
-                    style={{ backgroundColor: "#05966916" }}
-                  >
-                    <Users size={24} color="#059669" />
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-x-2">
-                      <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
-                        Mark Attendance
-                      </AppText>
-                      <Badge label="Daily Roster" variant="success" />
+          {[
+            { route: "/attendance", title: "Mark Attendance", caption: `Record daily register for Class ${assignedSection}`, color: "#059669", icon: Users, badge: "Daily Roster", badgeVariant: "success" as const },
+            { route: "/homework", title: "Assign Homework", caption: "Create and publish assignments with due dates", color: "#7C3AED", icon: BookOpenCheck, badge: "Curriculum", badgeVariant: "info" as const },
+            { route: "/marks", title: "Enter Exam Marks", caption: "Draft marks then submit official scorecards", color: "#EA580C", icon: Award, badge: "Grading", badgeVariant: "warning" as const },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <Pressable key={item.route} onPress={() => router.push(item.route as never)} className="active:opacity-80">
+                <Card variant="default">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
+                      <View className="w-12 h-12 rounded-2xl items-center justify-center" style={{ backgroundColor: `${item.color}16` }}>
+                        <Icon size={24} color={item.color} />
+                      </View>
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-x-2">
+                          <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
+                            {item.title}
+                          </AppText>
+                          <Badge label={item.badge} variant={item.badgeVariant} />
+                        </View>
+                        <AppText variant="caption" style={{ color: inkMuted, marginTop: 2 }}>
+                          {item.caption}
+                        </AppText>
+                      </View>
                     </View>
-                    <AppText variant="caption" style={{ color: "#64748B", marginTop: 2 }}>
-                      Record daily student attendance for Class {assignedSection}
-                    </AppText>
+                    <ChevronRight size={20} color={theme.colors.borderStrong ?? "#94A3B8"} />
                   </View>
-                </View>
-                <ChevronRight size={20} color="#94A3B8" />
-              </View>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => router.push("/homework")} className="active:opacity-80">
-            <Card variant="default">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
-                  <View
-                    className="w-12 h-12 rounded-2xl items-center justify-center shadow-sm"
-                    style={{ backgroundColor: "#7C3AED16" }}
-                  >
-                    <BookOpenCheck size={24} color="#7C3AED" />
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-x-2">
-                      <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
-                        Assign Homework
-                      </AppText>
-                      <Badge label="Curriculum" variant="info" />
-                    </View>
-                    <AppText variant="caption" style={{ color: "#64748B", marginTop: 2 }}>
-                      Create and publish assignments with due dates
-                    </AppText>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#94A3B8" />
-              </View>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => router.push("/marks")} className="active:opacity-80">
-            <Card variant="default">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
-                  <View
-                    className="w-12 h-12 rounded-2xl items-center justify-center shadow-sm"
-                    style={{ backgroundColor: "#EA580C16" }}
-                  >
-                    <Award size={24} color="#EA580C" />
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-x-2">
-                      <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
-                        Enter Exam Marks
-                      </AppText>
-                      <Badge label="Grading" variant="warning" />
-                    </View>
-                    <AppText variant="caption" style={{ color: "#64748B", marginTop: 2 }}>
-                      Enter draft marks and submit official scorecards
-                    </AppText>
-                  </View>
-                </View>
-                <ChevronRight size={20} color="#94A3B8" />
-              </View>
-            </Card>
-          </Pressable>
+                </Card>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
-      {/* 4. Today's Schedule Snapshot */}
       <View>
-        <SectionHeader
-          title="Today's Schedule"
-          actionLabel="View timetable →"
-          onAction={() => router.push("/timetable")}
-        />
+        <SectionHeader title="Today's Schedule" actionLabel="View timetable →" onAction={() => router.push("/timetable")} />
         {todayClasses.length > 0 ? (
           <View className="gap-y-2.5">
             {todayClasses.slice(0, 3).map((period, idx) => (
               <Card key={period.id ?? idx} variant="default">
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-x-3">
-                    <View
-                      className="w-10 h-10 rounded-xl items-center justify-center"
-                      style={{ backgroundColor: `${theme.colors.primary}12` }}
-                    >
-                      <AppText
-                        variant="caption"
-                        style={{ fontWeight: "700", color: theme.colors.primary }}
-                      >
+                    <View className="w-10 h-10 rounded-xl items-center justify-center" style={{ backgroundColor: `${theme.colors.primary}12` }}>
+                      <AppText variant="caption" style={{ fontWeight: "700", color: theme.colors.primary }}>
                         P{idx + 1}
                       </AppText>
                     </View>
@@ -257,31 +179,23 @@ export function TeacherHomeDashboard({ periods, onRefresh }: TeacherHomeDashboar
                       <AppText variant="title" style={{ fontSize: 15, fontWeight: "700" }}>
                         {period.subjectName ?? "Class"}
                       </AppText>
-                      <AppText variant="caption" style={{ color: "#64748B" }}>
+                      <AppText variant="caption" style={{ color: inkMuted }}>
                         {period.startTime} - {period.endTime} • Section {period.sectionLabel ?? assignedSection}
                       </AppText>
                     </View>
                   </View>
-                  <Badge label={period.roomNumber ? `Room ${period.roomNumber}` : assignedSection ? `Sec ${assignedSection}` : "Main Block"} variant="neutral" />
+                  <Badge label={period.roomNumber ? `Room ${period.roomNumber}` : assignedSection} variant="neutral" />
                 </View>
               </Card>
             ))}
           </View>
         ) : (
-          <Card variant="outlined" style={{ backgroundColor: "#F8FAFC", borderColor: "#E2E8F0" }}>
+          <Card variant="outlined" style={{ backgroundColor: theme.colors.surfaceMuted ?? "#F8FAFC" }}>
             <View className="items-center py-4">
-              <Sparkles size={24} color="#94A3B8" style={{ marginBottom: 6 }} />
-              <AppText variant="body" style={{ color: "#64748B", textAlign: "center" }}>
-                No active teaching periods scheduled for today.
+              <Sparkles size={24} color={inkMuted} />
+              <AppText variant="body" style={{ color: inkMuted, textAlign: "center", marginTop: 6 }}>
+                No teaching periods scheduled for today.
               </AppText>
-              <Pressable
-                onPress={() => router.push("/timetable")}
-                className="mt-2 flex-row items-center"
-              >
-                <AppText variant="caption" color={theme.colors.primary} style={{ fontWeight: "600" }}>
-                  Check weekly timetable →
-                </AppText>
-              </Pressable>
             </View>
           </Card>
         )}

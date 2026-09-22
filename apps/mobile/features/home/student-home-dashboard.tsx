@@ -12,30 +12,38 @@ import {
 } from "lucide-react-native";
 import type { TimetablePeriod } from "./home-snapshot";
 import { filterTodayPeriods, summarizeTodayClasses } from "./home-snapshot";
+import { formatStudentIdentity } from "./enduser-copy";
 import { useBranding } from "../branding/branding-provider";
 import { Card, MetricCard, SectionHeader, Avatar, Badge } from "../../components/ui";
 import { AppText } from "../../components/ui/AppText";
 
 export function StudentHomeDashboard({ periods }: { periods: TimetablePeriod[] }) {
-  const { theme, branding, acl } = useBranding();
+  const { theme, branding, acl, selectedChild } = useBranding();
   const router = useRouter();
   const today = filterTodayPeriods(periods);
   const summary = summarizeTodayClasses(periods);
+  const identity = formatStudentIdentity({
+    fullName: selectedChild?.fullName,
+    userId: acl?.userId,
+    className: selectedChild?.className,
+    sectionName: selectedChild?.sectionName,
+  });
+  const inkMuted = theme.colors.inkMuted ?? "#64748B";
 
   return (
     <View className="gap-y-6">
       <Card variant="elevated">
         <View className="flex-row items-center gap-x-3.5">
-          <Avatar name={acl?.userId ?? "Student"} role="student" size="lg" />
+          <Avatar name={identity.title} role="student" size="lg" />
           <View className="flex-1">
-            <AppText variant="caption" style={{ color: "#64748B", fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}>
+            <AppText variant="caption" style={{ color: inkMuted, fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}>
               {branding?.schoolName ?? "Arul Neri Academy"}
             </AppText>
-            <AppText variant="title" style={{ fontSize: 18, fontWeight: "800", color: "#1E293B" }} numberOfLines={1}>
-              Your day
+            <AppText variant="title" style={{ fontSize: 18, fontWeight: "800", color: theme.colors.ink }} numberOfLines={1}>
+              {identity.title}
             </AppText>
             <View className="mt-1">
-              <Badge label="Student · own record only" variant="neutral" />
+              <Badge label={identity.badge} variant="neutral" />
             </View>
           </View>
         </View>
@@ -105,7 +113,7 @@ export function StudentHomeDashboard({ periods }: { periods: TimetablePeriod[] }
                     <AppText variant="title" style={{ fontSize: 15, fontWeight: "700" }}>
                       {period.subjectName ?? "Class"}
                     </AppText>
-                    <AppText variant="caption" style={{ color: "#64748B" }}>
+                    <AppText variant="caption" style={{ color: inkMuted }}>
                       {period.startTime} – {period.endTime}
                     </AppText>
                   </View>
@@ -114,10 +122,10 @@ export function StudentHomeDashboard({ periods }: { periods: TimetablePeriod[] }
             ))}
           </View>
         ) : (
-          <Card variant="outlined" style={{ backgroundColor: "#F8FAFC" }}>
+          <Card variant="outlined">
             <View className="items-center py-4">
-              <Sparkles size={24} color="#94A3B8" />
-              <AppText variant="body" style={{ color: "#64748B", textAlign: "center", marginTop: 6 }}>
+              <Sparkles size={24} color={inkMuted} />
+              <AppText variant="body" style={{ color: inkMuted, textAlign: "center", marginTop: 6 }}>
                 No published periods today.
               </AppText>
             </View>
@@ -146,12 +154,12 @@ export function StudentHomeDashboard({ periods }: { periods: TimetablePeriod[] }
                         <AppText variant="title" style={{ fontSize: 16, fontWeight: "700" }}>
                           {item.title}
                         </AppText>
-                        <AppText variant="caption" style={{ color: "#64748B", marginTop: 2 }}>
+                        <AppText variant="caption" style={{ color: inkMuted, marginTop: 2 }}>
                           {item.caption}
                         </AppText>
                       </View>
                     </View>
-                    <ChevronRight size={20} color="#94A3B8" />
+                    <ChevronRight size={20} color={theme.colors.borderStrong ?? "#94A3B8"} />
                   </View>
                 </Card>
               </Pressable>
