@@ -57,6 +57,7 @@ export function getHomeShortcuts(role: MobileHomeRole): HomeShortcut[] {
         { id: "timetable", label: "Today's timetable", route: "/timetable", permission: PERMISSIONS.TIMETABLE_READ },
         { id: "homework", label: "Homework", route: "/homework", permission: PERMISSIONS.HOMEWORK_READ },
         { id: "exams", label: "Exam results", route: "/marks", permission: PERMISSIONS.MARKS_READ },
+        { id: "report-card", label: "Report card", route: "/report-card", permission: PERMISSIONS.MARKS_READ },
         { id: "attendance", label: "Attendance", route: "/attendance", permission: PERMISSIONS.ATTENDANCE_READ },
         { id: "notices", label: "Notices", route: "/notices", permission: PERMISSIONS.NOTICES_READ },
       ];
@@ -66,6 +67,7 @@ export function getHomeShortcuts(role: MobileHomeRole): HomeShortcut[] {
         { id: "homework", label: "Homework", route: "/homework", permission: PERMISSIONS.HOMEWORK_READ },
         { id: "fees", label: "Fees", route: "/fees", permission: PERMISSIONS.FEES_READ },
         { id: "exams", label: "Exam results", route: "/marks", permission: PERMISSIONS.MARKS_READ },
+        { id: "report-card", label: "Report card", route: "/report-card", permission: PERMISSIONS.MARKS_READ },
         { id: "notices", label: "Notices", route: "/notices", permission: PERMISSIONS.NOTICES_READ },
       ];
   }
@@ -80,8 +82,9 @@ export function getMobileHomeTitle(role: MobileHomeRole): string {
     case "teacher":
       return "Your day";
     case "student":
+      return "My day";
     case "parent":
-      return "Today";
+      return "Your child today";
   }
 }
 
