@@ -5,7 +5,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/theme/createTheme.test.ts"
   },
   "dependencies": {
     "@schoolos/types": "workspace:*"

@@ -1,3 +1,37 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --color-primary: #0b3a6e;
+  --color-primary-dark: #082a50;
+  --color-accent: #e8a317;
+  --color-background: #f4f7fb;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-canvas: #f4f7fb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #e8eef5;
+  --color-border: #d6dee8;
+  --color-border-strong: #94a3b8;
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --color-ink-inverse: #ffffff;
+  --color-link: #0b3a6e;
+  --color-status-present: #16a34a;
+  --color-status-absent: #dc2626;
+  --color-status-late: #f59e0b;
+  --color-status-holiday: #475569;
+  --color-status-fee-due: #f59e0b;
+  --color-status-published: #0b3a6e;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-body: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+  --font-tamil: "Noto Sans Tamil", sans-serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-display: 28px;
+}
