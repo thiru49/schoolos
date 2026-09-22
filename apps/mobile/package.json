@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "expo start",
     "typecheck": "tsc --noEmit",
-    "test": "tsx __tests__/api-client-refresh.test.ts && tsx __tests__/mobile-communications.test.ts && tsx __tests__/mobile-tenant.test.ts && tsx __tests__/mobile-home.test.ts && tsx __tests__/mobile-role-homes.test.ts && tsx __tests__/mobile-offline-cache.test.ts && tsx __tests__/mobile-phase2-auth-shell.test.ts && tsx __tests__/mobile-phase3-teacher.test.ts"
+    "test": "tsx __tests__/api-client-refresh.test.ts && tsx __tests__/mobile-communications.test.ts && tsx __tests__/mobile-tenant.test.ts && tsx __tests__/mobile-home.test.ts && tsx __tests__/mobile-role-homes.test.ts && tsx __tests__/mobile-flow-audit.test.ts && tsx __tests__/mobile-offline-cache.test.ts && tsx __tests__/mobile-phase2-auth-shell.test.ts && tsx __tests__/mobile-phase3-teacher.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.15",
