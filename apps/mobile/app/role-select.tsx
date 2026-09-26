@@ -1,18 +1,14 @@
-import React from "react";
-import { View, Pressable } from "react-native";
+﻿import React from "react";
+import { Image, View, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { GraduationCap, Users, Briefcase, ChevronRight, Check } from "lucide-react-native";
 import type { RoleCode } from "@schoolos/types";
 import { useBranding } from "../features/branding/branding-provider";
 import { setActiveRole as persistActiveRole } from "../services/storage";
-import {
-  Screen,
-  ScreenHeader,
-  Card,
-  Badge,
-} from "../components/ui";
+import { Screen, Card, Badge } from "../components/ui";
 import { AppText } from "../components/ui/AppText";
-import { ChangeSchoolLink } from "../components/ui/ChangeSchoolLink";
+
+const FOOTER_CREDIT = "Developed by SchoolOS Team";
 
 interface RoleOption {
   id: RoleCode;
@@ -23,6 +19,7 @@ interface RoleOption {
   accent: string;
 }
 
+/** Mobile entry roles only — Admin stays on web. */
 const ROLES: RoleOption[] = [
   {
     id: "student",
@@ -59,6 +56,15 @@ export default function RoleSelect() {
     ? ROLES.filter((r) => acl?.roles.includes(r.id))
     : ROLES;
 
+  const primary = theme.colors.primary || "#0B3A6E";
+  const schoolName = branding?.schoolName ?? "SchoolOS";
+  const initials = schoolName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+
   async function selectRole(roleId: RoleCode) {
     if (isAuthenticated) {
       setActiveRole(roleId);
@@ -71,23 +77,61 @@ export default function RoleSelect() {
 
   return (
     <Screen scrollable={true}>
-      <View className="px-6 pt-10 pb-8">
-        <View className="mb-6">
-          <Badge
-            label={branding?.schoolName ?? "SchoolOS"}
-            variant="neutral"
-            style={{ alignSelf: "flex-start", marginBottom: 8 }}
-          />
+      <View className="flex-1 px-6 pt-8 pb-8">
+        {/* Brand header — logo + school from tenant branding */}
+        <View className="mb-6 flex-row items-center gap-x-3">
+          <View
+            className="h-12 w-12 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: `${primary}14` }}
+          >
+            {branding?.logoUrl ? (
+              <Image
+                source={{ uri: branding.logoUrl }}
+                style={{ width: 36, height: 36 }}
+                resizeMode="contain"
+              />
+            ) : (
+              <AppText
+                variant="title"
+                color={primary}
+                style={{ fontSize: 16, fontWeight: "800" }}
+              >
+                {initials || "SO"}
+              </AppText>
+            )}
+          </View>
+          <View className="flex-1">
+            <AppText
+              variant="title"
+              color={primary}
+              style={{ fontSize: 16, fontWeight: "800" }}
+              numberOfLines={1}
+            >
+              {schoolName}
+            </AppText>
+            {branding?.location ? (
+              <AppText
+                variant="caption"
+                style={{ color: "#94A3B8", marginTop: 2, fontSize: 12 }}
+                numberOfLines={1}
+              >
+                {branding.location.replace(/ · /g, ", ")}
+              </AppText>
+            ) : null}
+          </View>
+        </View>
+
+        <View className="mb-5">
           <AppText
             variant="display"
-            color={theme.colors.primary}
+            color={primary}
             style={{ fontSize: 28, fontWeight: "800" }}
           >
             {isAuthenticated ? "Switch Active Role" : "Select Your Role"}
           </AppText>
           <AppText
             variant="body"
-            style={{ marginTop: 6, color: "#475569", fontSize: 15 }}
+            style={{ marginTop: 6, color: "#64748B", fontSize: 15 }}
           >
             {isAuthenticated
               ? "Select the role context you want to manage right now."
@@ -116,14 +160,14 @@ export default function RoleSelect() {
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center gap-x-3.5 flex-1 pr-2">
                       <View
-                        className="w-12 h-12 rounded-2xl items-center justify-center shadow-sm"
+                        className="h-12 w-12 items-center justify-center rounded-2xl"
                         style={{ backgroundColor: `${r.accent}16` }}
                       >
                         <IconComponent size={24} color={r.accent} />
                       </View>
 
                       <View className="flex-1">
-                        <View className="flex-row items-center gap-x-2">
+                        <View className="flex-row flex-wrap items-center gap-x-2">
                           <AppText
                             variant="title"
                             style={{ fontSize: 17, fontWeight: "700", color: "#1E293B" }}
@@ -149,7 +193,7 @@ export default function RoleSelect() {
 
                     {isCurrentActive ? (
                       <View
-                        className="w-8 h-8 rounded-full items-center justify-center"
+                        className="h-8 w-8 items-center justify-center rounded-full"
                         style={{ backgroundColor: r.accent }}
                       >
                         <Check size={16} color="white" />
@@ -164,8 +208,13 @@ export default function RoleSelect() {
           })}
         </View>
 
-        <View className="mt-8">
-          <ChangeSchoolLink />
+        <View className="mt-10 items-center">
+          <AppText
+            variant="caption"
+            style={{ color: "#94A3B8", fontSize: 12, textAlign: "center" }}
+          >
+            {branding?.poweredBy?.trim() || FOOTER_CREDIT}
+          </AppText>
         </View>
       </View>
     </Screen>

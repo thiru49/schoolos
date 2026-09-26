@@ -1,13 +1,17 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
+  StatusBar,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Lock, User, Eye, EyeOff, LogIn } from "lucide-react-native";
+import { Lock, User, Eye, EyeOff, LogIn, ChevronLeft } from "lucide-react-native";
 import type { RoleCode } from "@schoolos/types";
 import { api } from "../services/api";
 import {
@@ -20,38 +24,47 @@ import {
 import { registerPushToken } from "../services/push";
 import { useBranding } from "../features/branding/branding-provider";
 import { brandingMatchesSlug, tenantSessionMatches } from "../features/tenant/tenant-policy";
-import {
-  Screen,
-  ScreenHeader,
-  Card,
-  AppInput,
-  AppButton,
-  Badge,
-} from "../components/ui";
+import { Card, AppInput, AppButton } from "../components/ui";
 import { AppText } from "../components/ui/AppText";
-import { ChangeSchoolLink } from "../components/ui/ChangeSchoolLink";
 
-const ROLE_PRESETS: Partial<Record<RoleCode, { identifier: string; label: string }>> = {
-  teacher: { identifier: "TCH-8A", label: "Teacher" },
-  parent: { identifier: "9000000001", label: "Parent" },
-  student: { identifier: "AN2021-0001", label: "Student" },
-  school_super_admin: { identifier: "admin", label: "Admin" },
-  academic_admin: { identifier: "academic", label: "Academic Admin" },
-  accounts_admin: { identifier: "accounts", label: "Accounts Admin" },
+const FOOTER_CREDIT = "Developed by SchoolOS Team";
+
+const ROLE_COPY: Partial<
+  Record<RoleCode, { label: string; ta: string; idLabel: string; idPlaceholder: string }>
+> = {
+  teacher: {
+    label: "Teacher",
+    ta: "ஆசிரியர்",
+    idLabel: "Employee ID",
+    idPlaceholder: "Enter employee ID",
+  },
+  parent: {
+    label: "Parent",
+    ta: "பெற்றோர்",
+    idLabel: "Mobile number",
+    idPlaceholder: "Enter registered mobile number",
+  },
+  student: {
+    label: "Student",
+    ta: "மாணவர்",
+    idLabel: "Admission ID",
+    idPlaceholder: "Enter admission ID",
+  },
 };
 
+const ALLOWED_ROLES: RoleCode[] = ["teacher", "parent", "student"];
+
 export default function Login() {
-  const { role: initialRole } = useLocalSearchParams<{ role?: RoleCode }>();
+  const { role: roleParam } = useLocalSearchParams<{ role?: RoleCode }>();
   const router = useRouter();
   const { branding, theme, setAcl, setActiveRole } = useBranding();
 
-  const [selectedRole, setSelectedRole] = useState<RoleCode>(
-    initialRole && ROLE_PRESETS[initialRole] ? initialRole : "teacher",
-  );
-  const [identifier, setIdentifier] = useState(
-    ROLE_PRESETS[selectedRole]?.identifier ?? "TCH-8A",
-  );
-  const [password, setPassword] = useState("Password123!");
+  const role: RoleCode =
+    roleParam && ALLOWED_ROLES.includes(roleParam) ? roleParam : "student";
+  const roleCopy = ROLE_COPY[role] ?? ROLE_COPY.student!;
+
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,11 +72,19 @@ export default function Login() {
   const canSubmit =
     identifier.trim().length > 0 && password.trim().length > 0 && !loading;
 
-  function handleRoleChange(newRole: RoleCode) {
-    setSelectedRole(newRole);
-    setIdentifier(ROLE_PRESETS[newRole]?.identifier ?? "");
-    setError(null);
-  }
+  const primary = theme.colors.primary || "#0B3A6E";
+  const schoolName = branding?.schoolName ?? "SchoolOS";
+  const schoolLocation = branding?.location?.trim() || "";
+  const initials = useMemo(
+    () =>
+      schoolName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join(""),
+    [schoolName],
+  );
 
   async function submit() {
     if (!canSubmit) return;
@@ -75,7 +96,7 @@ export default function Login() {
       const client = await api();
       const res = await client.auth.login({
         slug,
-        roleHint: selectedRole,
+        roleHint: role,
         identifier: identifier.trim(),
         password,
       });
@@ -90,21 +111,19 @@ export default function Login() {
         await clearTokens();
         await clearActiveRole();
         setActiveRole(null);
-        setError("This account does not belong to the selected school.");
+        setError("This account does not belong to this school.");
         return;
       }
 
       setAcl(aclRes);
 
-      // Resolve active role
-      if (selectedRole && aclRes.roles.includes(selectedRole)) {
-        await persistActiveRole(selectedRole);
-        setActiveRole(selectedRole);
+      if (aclRes.roles.includes(role)) {
+        await persistActiveRole(role);
+        setActiveRole(role);
       } else if (aclRes.roles.length === 1) {
         await persistActiveRole(aclRes.roles[0]);
         setActiveRole(aclRes.roles[0]);
       } else if (aclRes.roles.length > 1) {
-        // Multi-role user without exact matching role -> send to role-select
         router.replace("/role-select");
         return;
       }
@@ -119,119 +138,141 @@ export default function Login() {
   }
 
   return (
-    <Screen scrollable={true}>
+    <SafeAreaView
+      edges={["top", "left", "right", "bottom"]}
+      style={{ flex: 1, backgroundColor: theme.colors.background }}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor={theme.colors.background} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        className="flex-1"
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
-        <View className="px-6 pt-10 pb-8">
-          {/* Header */}
-          <View className="mb-6">
-            <Badge
-              label={branding?.schoolName ?? "SchoolOS"}
-              variant="neutral"
-              style={{ alignSelf: "flex-start", marginBottom: 8 }}
-            />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 24,
+            paddingTop: 16,
+            paddingBottom: 20,
+          }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <Pressable
+            onPress={() => router.replace("/role-select")}
+            className="mb-4 flex-row items-center gap-x-1 self-start py-1"
+            hitSlop={8}
+          >
+            <ChevronLeft size={18} color={primary} />
+            <AppText variant="caption" color={primary} style={{ fontWeight: "600" }}>
+              Back to roles
+            </AppText>
+          </Pressable>
+
+          <View className="mb-6 flex-row items-center gap-x-3">
+            <View
+              className="h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: `${primary}14` }}
+            >
+              {branding?.logoUrl ? (
+                <Image
+                  source={{ uri: branding.logoUrl }}
+                  style={{ width: 36, height: 36 }}
+                  resizeMode="contain"
+                />
+              ) : (
+                <AppText
+                  variant="title"
+                  color={primary}
+                  style={{ fontSize: 16, fontWeight: "800" }}
+                >
+                  {initials || "SO"}
+                </AppText>
+              )}
+            </View>
+            <View className="flex-1">
+              <AppText
+                variant="title"
+                color={primary}
+                style={{ fontSize: 16, fontWeight: "800" }}
+                numberOfLines={1}
+              >
+                {schoolName}
+              </AppText>
+              <AppText
+                variant="caption"
+                style={{ color: "#64748B", marginTop: 2, fontSize: 12 }}
+              >
+                {roleCopy.label} ({roleCopy.ta})
+              </AppText>
+            </View>
+          </View>
+
+          <View className="mb-5">
             <AppText
               variant="display"
-              color={theme.colors.primary}
+              color={primary}
               style={{ fontSize: 28, fontWeight: "800" }}
             >
               Sign In
             </AppText>
             <AppText
               variant="body"
-              style={{ marginTop: 6, color: "#475569", fontSize: 15 }}
+              style={{ marginTop: 6, color: "#64748B", fontSize: 15 }}
             >
-              Enter your credentials to access your portal.
+              Enter your credentials, then tap Sign In below.
             </AppText>
           </View>
 
-          {/* Role Switching Pills */}
-          <View className="mb-5">
-            <AppText
-              variant="caption"
-              style={{ color: "#64748B", marginBottom: 8, fontWeight: "600", textTransform: "uppercase", fontSize: 11 }}
-            >
-              Signing in as:
-            </AppText>
-            <View className="flex-row gap-x-2">
-              {(["teacher", "parent", "student"] as RoleCode[]).map((r) => {
-                const isSelected = selectedRole === r;
-                return (
-                  <Pressable
-                    key={r}
-                    onPress={() => handleRoleChange(r)}
-                    className="flex-1 py-2 rounded-xl items-center border"
-                    style={{
-                      backgroundColor: isSelected ? theme.colors.primary : "#F8FAFC",
-                      borderColor: isSelected ? theme.colors.primary : "#E2E8F0",
-                    }}
-                  >
-                    <AppText
-                      variant="caption"
-                      style={{
-                        fontWeight: "700",
-                        color: isSelected ? "white" : "#475569",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {r}
-                    </AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Form Card */}
-          <Card variant="elevated" style={{ marginBottom: 16 }}>
+          <Card variant="elevated" style={{ marginBottom: 8 }}>
             <View className="gap-y-4">
               <AppInput
-                label="Admission / Employee ID"
-                placeholder="Enter ID or mobile number"
+                label={roleCopy.idLabel}
+                placeholder={roleCopy.idPlaceholder}
                 value={identifier}
                 onChangeText={(t) => {
                   setIdentifier(t);
                   if (error) setError(null);
                 }}
                 autoCapitalize="none"
+                autoCorrect={false}
                 returnKeyType="next"
+                blurOnSubmit={false}
                 leftIcon={<User size={18} color="#94A3B8" />}
               />
 
-              <View>
-                <AppInput
-                  label="Password"
-                  placeholder="Enter password"
-                  value={password}
-                  onChangeText={(t) => {
-                    setPassword(t);
-                    if (error) setError(null);
-                  }}
-                  secureTextEntry={!showPassword}
-                  returnKeyType="done"
-                  onSubmitEditing={() => {
-                    if (canSubmit) void submit();
-                  }}
-                  leftIcon={<Lock size={18} color="#94A3B8" />}
-                  rightIcon={
-                    <Pressable
-                      onPress={() => setShowPassword((prev) => !prev)}
-                      hitSlop={8}
-                    >
-                      {showPassword ? (
-                        <EyeOff size={18} color="#94A3B8" />
-                      ) : (
-                        <Eye size={18} color="#94A3B8" />
-                      )}
-                    </Pressable>
-                  }
-                />
-              </View>
+              <AppInput
+                label="Password"
+                placeholder="Enter password"
+                value={password}
+                onChangeText={(t) => {
+                  setPassword(t);
+                  if (error) setError(null);
+                }}
+                secureTextEntry={!showPassword}
+                returnKeyType="go"
+                onSubmitEditing={() => {
+                  if (canSubmit) void submit();
+                }}
+                leftIcon={<Lock size={18} color="#94A3B8" />}
+                rightIcon={
+                  <Pressable
+                    onPress={() => setShowPassword((prev) => !prev)}
+                    hitSlop={8}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} color="#94A3B8" />
+                    ) : (
+                      <Eye size={18} color="#94A3B8" />
+                    )}
+                  </Pressable>
+                }
+              />
 
               {error ? (
-                <View className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                <View className="rounded-xl border border-red-200 bg-red-50 p-3">
                   <AppText
                     variant="caption"
                     color={theme.colors.danger}
@@ -241,21 +282,66 @@ export default function Login() {
                   </AppText>
                 </View>
               ) : null}
-
-              <AppButton
-                label={loading ? "Signing in…" : "Sign In"}
-                loading={loading}
-                disabled={!canSubmit}
-                variant="primary"
-                onPress={() => void submit()}
-                rightIcon={<LogIn size={18} color="white" />}
-              />
             </View>
           </Card>
+        </ScrollView>
 
-          <ChangeSchoolLink />
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#E2E8F0",
+            backgroundColor: theme.colors.background,
+            paddingHorizontal: 24,
+            paddingTop: 12,
+            paddingBottom: 8,
+          }}
+        >
+          <AppButton
+            label={loading ? "Signing in..." : "Sign In"}
+            loading={loading}
+            disabled={!canSubmit}
+            variant="primary"
+            size="lg"
+            onPress={() => void submit()}
+            rightIcon={loading ? undefined : <LogIn size={18} color="white" />}
+          />
+
+          <View className="mt-3 items-center">
+            <AppText
+              variant="caption"
+              style={{
+                color: primary,
+                fontSize: 12,
+                fontWeight: "700",
+                textAlign: "center",
+              }}
+              numberOfLines={1}
+            >
+              {schoolName}
+            </AppText>
+            {schoolLocation ? (
+              <AppText
+                variant="caption"
+                style={{ color: "#94A3B8", fontSize: 11, textAlign: "center", marginTop: 1 }}
+                numberOfLines={1}
+              >
+                {schoolLocation}
+              </AppText>
+            ) : null}
+            <AppText
+              variant="caption"
+              style={{
+                color: "#94A3B8",
+                fontSize: 11,
+                textAlign: "center",
+                marginTop: 4,
+              }}
+            >
+              {FOOTER_CREDIT}
+            </AppText>
+          </View>
         </View>
       </KeyboardAvoidingView>
-    </Screen>
+    </SafeAreaView>
   );
 }
