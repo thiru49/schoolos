@@ -15,6 +15,8 @@ RLS, composite tenant foreign keys, and `get_public_branding()` are applied by *
 - Jobs: Redis + BullMQ worker
 - Files: MinIO
 
+**Developer setup (web, mobile, API, dev vs prod, deploy):** [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md)
+
 ## Local demo
 
 ```bash

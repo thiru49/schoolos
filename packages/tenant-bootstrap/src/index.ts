@@ -203,7 +203,7 @@ export const SCHOOL_B_FIXTURE_THEME: BrandingTheme = {
   accent: "#CA8A04",
 };
 
-export const DEFAULT_POWERED_BY = "CREOVY Digital Solutions";
+export const DEFAULT_POWERED_BY = "Developed by SchoolOS Team";
 
 const baseTypography = (
   preset: string,
