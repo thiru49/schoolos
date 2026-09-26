@@ -72,7 +72,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <BrandingContextProvider branding={branding} acl={acl}>
       <DashboardShell>
-        {React.createElement(PageErrorBoundary, null, children)}
+        <PageErrorBoundary>{children}</PageErrorBoundary>
       </DashboardShell>
     </BrandingContextProvider>
   );
